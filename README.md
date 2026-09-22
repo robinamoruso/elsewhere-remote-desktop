@@ -94,7 +94,7 @@ Password, Telegram and an optional fixed domain. The file lives in `~/.elsewhere
 **Requirements:** macOS 13+, Python 3.10+, Xcode Command Line Tools (`xcode-select --install`), and `brew install cloudflared`.
 
 ```bash
-git clone <this-repo> elsewhere-remote-desktop
+git clone https://github.com/robinamoruso/elsewhere-remote-desktop.git
 cd elsewhere-remote-desktop
 ./install.sh
 ```
