@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title> </title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:#0d0d0d; color:#eee; font-family:monospace; user-select:none; overflow:hidden; height:100dvh; }
+
+/* LOGIN */
+#login { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100dvh; gap:14px; }
+#login h2 { font-size:22px; letter-spacing:1px; }
+#login input { padding:10px 16px; font-size:16px; border-radius:8px; border:1px solid #444; background:#1e1e1e; color:#fff; width:270px; }
+#login button { padding:10px 28px; background:#0078d4; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:15px; }
+#login button:hover { background:#005fa3; }
+#err { color:#f66; font-size:13px; min-height:16px; }
+
+/* APP */
+#app { display:none; position:fixed; inset:0; }
+
+/* TOPBAR */
+#bar {
+  position:absolute; top:0; left:0; right:0; height:38px; z-index:20;
+  background:#1a1a1a; padding:0 12px;
+  display:flex; gap:12px; align-items:center; font-size:12px;
+  border-bottom:1px solid #333; overflow-x:auto;
+}
+#bar label { display:flex; gap:5px; align-items:center; color:#aaa; white-space:nowrap; }
+#bar input[type=range] { width:64px; accent-color:#0078d4; }
+#bar .val { color:#fff; min-width:26px; }
+#bar .btn { padding:3px 10px; background:#2a2a2a; border:1px solid #444; color:#ccc; border-radius:5px; cursor:pointer; font-size:11px; white-space:nowrap; }
+#bar .btn:hover { background:#3a3a3a; }
+#bar .btn.active { background:#0078d4; border-color:#005fa3; color:#fff; }
+#bar select { background:#2a2a2a; border:1px solid #444; color:#ccc; border-radius:5px; font-size:11px; padding:2px 4px; }
+#status { margin-left:auto; font-size:12px; white-space:nowrap; }
+#status.on  { color:#2ecc71; }
+#status.off { color:#e74c3c; }
+
+/* CANVAS */
+#screen-wrap { position:absolute; inset:0; top:38px; background:#000; touch-action:none; overflow:hidden; }
+canvas { display:block; position:absolute; touch-action:none; cursor:none; }
+
+/* MOBILE TOOLBAR */
+#mobile-bar {
+  display:none; position:fixed; bottom:0; left:0; right:0; z-index:50;
+  background:rgba(20,20,20,0.96); border-top:1px solid #444;
+  padding:6px 8px; gap:6px; flex-wrap:wrap; justify-content:center;
+  backdrop-filter:blur(8px);
+}
+#mobile-bar button {
+  padding:9px 11px; background:#2e2e2e; color:#eee; border:1px solid #444;
+  border-radius:7px; font-size:13px; cursor:pointer; flex:1; min-width:60px; max-width:100px;
+}
+#mobile-bar button:active { background:#555; }
+
+/* CURSORI */
+#desk-cursor { position:fixed; width:14px; height:14px; border:2px solid #0f0; border-radius:50%; pointer-events:none; transform:translate(-50%,-50%); z-index:99; opacity:0; }
+#touch-cursor { position:fixed; width:18px; height:18px; border:2px solid #00ff88; border-radius:50%; background:rgba(0,255,136,0.2); box-shadow:0 0 8px #00ff88; pointer-events:none; transform:translate(-50%,-50%); z-index:99; display:none; }
+
+/* Ghost input - fuori viewport ma accessibile */
+#ghost { position:fixed; left:50%; top:-200px; width:200px; height:40px; opacity:0.01; font-size:16px; border:none; background:transparent; color:transparent; caret-color:transparent; outline:none; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>🖥️ Elsewhere</h2>
+  <input id="pwd" type="password" placeholder="Password" autofocus>
+  <button onclick="connect()">Connetti</button>
+  <div id="err"></div>
+</div>
+
+<div id="app">
+  <div id="bar">
+    <label>FPS <input type="range" id="r-fps" min="1" max="30" value="20" oninput="sendConfig()"> <span class="val" id="v-fps">20</span></label>
+    <label>Q <input type="range" id="r-qual" min="15" max="85" value="55" oninput="sendConfig()"> <span class="val" id="v-qual">55</span></label>
+    <label>Scala <input type="range" id="r-scale" min="0.3" max="1" step="0.05" value="0.8" oninput="sendConfig()"> <span class="val" id="v-scale">80%</span></label>
+    <label>Monitor <select id="mon-select" onchange="sendConfig()"></select></label>
+    <button class="btn" id="win-kb-btn" onclick="toggleWinKb()" title="Remap Ctrl→⌘, Alt→⌥, Win→⌘">⊞ Win KB</button>
+    <button class="btn" id="zoom-btn" onclick="toggleZoom()" title="Attiva/Disattiva zoom che segue il mouse">🔍 Zoom</button>
+    <button class="btn" onclick="copyFromMac()">📋 Copia Mac</button>
+    <button class="btn" onclick="pasteToMac()">📌 Incolla Mac</button>
+    <button class="btn" onclick="wakeDisplay()" title="Riaccende lo schermo se è nero o in standby">☀️ Sveglia</button>
+    <span id="status" class="off">● Off</span>
+  </div>
+  <div id="screen-wrap"><canvas id="c"></canvas></div>
+  <div id="mobile-bar">
+    <button onclick="wakeDisplay()" title="Sveglia schermo">☀️</button>
+    <button onclick="combo('command','c')">⌘C</button>
+    <button onclick="combo('command','v')">⌘V</button>
+    <button onclick="combo('command','z')">⌘Z</button>
+    <button onclick="combo('command','space')">⌘Spc</button>
+    <button onclick="tap('backspace')">⌫</button>
+    <button onclick="tap('enter')">↵</button>
+    <button onclick="tap('up')">↑</button>
+    <button onclick="tap('down')">↓</button>
+    <button onclick="tap('left')">←</button>
+    <button onclick="tap('right')">→</button>
+    <button onclick="rightClick()">R-click</button>
+    <button onclick="toggleKb()" id="kb-btn">⌨️ KB</button>
+  </div>
+</div>
+
+<div id="desk-cursor"></div>
+<div id="touch-cursor"></div>
+<input id="ghost" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+
+<script>
+// ── Zoom State ───────────────────────────────────────────────────────────
+let zoomEnabled = false;
+let zoomFactor = 2.0;
+let currentLeft = 0;
+let currentTop = 0;
+
+function toggleZoom() {
+  zoomEnabled = !zoomEnabled;
+  document.getElementById('zoom-btn').classList.toggle('active', zoomEnabled);
+  
+  if (zoomEnabled) {
+    // Centra inizialmente sul cursore
+    const wr = wrap.getBoundingClientRect();
+    const aspect = sw / sh;
+    let w = wr.width, h = wr.height;
+    if (w / h > aspect) { w = h * aspect; } else { h = w / aspect; }
+    w *= zoomFactor;
+    h *= zoomFactor;
+    
+    currentLeft = wr.width / 2 - cx * w;
+    currentTop  = wr.height / 2 - cy * h;
+    
+    if (w > wr.width) currentLeft = Math.max(wr.width - w, Math.min(0, currentLeft));
+    if (h > wr.height) currentTop = Math.max(wr.height - h, Math.min(0, currentTop));
+  }
+  
+  fitCanvas();
+}
+
+function updateCanvasPosition(w, h) {
+  const wr = wrap.getBoundingClientRect();
+  if (zoomEnabled) {
+    // Coordinata reale del cursore rispetto al wrapper visibile
+    let cursorX = currentLeft + cx * w;
+    let cursorY = currentTop + cy * h;
+    
+    // Spostamento se ci si avvicina ai bordi (es. 25% dell'area visibile)
+    const padX = Math.min(150, wr.width * 0.25);
+    const padY = Math.min(150, wr.height * 0.25);
+    
+    if (w > wr.width) {
+      if (cursorX < padX) {
+        currentLeft = padX - cx * w;
+      } else if (cursorX > wr.width - padX) {
+        currentLeft = (wr.width - padX) - cx * w;
+      }
+      currentLeft = Math.max(wr.width - w, Math.min(0, currentLeft));
+    } else {
+      currentLeft = (wr.width - w) / 2;
+    }
+    
+    if (h > wr.height) {
+      if (cursorY < padY) {
+        currentTop = padY - cy * h;
+      } else if (cursorY > wr.height - padY) {
+        currentTop = (wr.height - padY) - cy * h;
+      }
+      currentTop = Math.max(wr.height - h, Math.min(0, currentTop));
+    } else {
+      currentTop = (wr.height - h) / 2;
+    }
+    
+    canvas.style.left = currentLeft + 'px';
+    canvas.style.top  = currentTop + 'px';
+  } else {
+    currentLeft = (wr.width - w) / 2;
+    currentTop  = (wr.height - h) / 2;
+    canvas.style.left = currentLeft + 'px';
+    canvas.style.top  = currentTop + 'px';
+  }
+}
+
+// ── Fit canvas senza bordi neri ──────────────────────────────────────────
+function fitCanvas() {
+  const wr = wrap.getBoundingClientRect();
+  const aspect = sw / sh;
+  let w = wr.width, h = wr.height;
+  if (w / h > aspect) { w = h * aspect; } else { h = w / aspect; }
+  
+  if (zoomEnabled) {
+    w *= zoomFactor;
+    h *= zoomFactor;
+  }
+  
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  updateCanvasPosition(w, h);
+}
+window.addEventListener('resize', fitCanvas);
+
+// ── State ────────────────────────────────────────────────────────────────
+let ws, token;
+const canvas  = document.getElementById('c');
+const ctx     = canvas.getContext('2d');
+const dCur    = document.getElementById('desk-cursor');
+const tCur    = document.getElementById('touch-cursor');
+const ghost   = document.getElementById('ghost');
+const mBar    = document.getElementById('mobile-bar');
+const status  = document.getElementById('status');
+const wrap    = document.getElementById('screen-wrap');
+
+const mobile  = () => navigator.maxTouchPoints > 0;
+let sw = 1920, sh = 1080;          // dimensioni reali schermo Mac
+let cx = 0.5, cy = 0.5;            // cursore remoto (0-1)
+let kbOpen = false;
+let ghostVal = '     ';            // padding fisso per rilevare backspace
+
+// ── AUTH ─────────────────────────────────────────────────────────────────
+async function connect() {
+  const pwd = document.getElementById('pwd').value.trim();
+  if (!pwd) return;
+  try {
+    const r = await fetch('/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pwd}) });
+    if (!r.ok) { document.getElementById('err').textContent='Password errata'; return; }
+    token = (await r.json()).token;
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').style.display   = 'block';
+    if (mobile()) mBar.style.display = 'flex';
+    openWS();
+  } catch { document.getElementById('err').textContent = 'Errore di rete'; }
+}
+
+function wakeDisplay() {
+  send({ type: 'wake' });
+}
+
+// ── WEBSOCKET ────────────────────────────────────────────────────────────
+function openWS() {
+  const proto = location.protocol==='https:' ? 'wss':'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/${token}`);
+  ws.onopen  = () => {
+    status.textContent='● On';
+    status.className='on';
+    sendConfig();
+    wakeDisplay();
+  };
+  ws.onclose = e => {
+    status.textContent='● Off'; status.className='off';
+    if (e.code === 4001) {  // sessione scaduta: serve la password, non un retry
+      document.getElementById('app').style.display   = 'none';
+      document.getElementById('login').style.display = 'flex';
+      document.getElementById('err').textContent = 'Sessione scaduta, rientra';
+      token = null;
+      return;
+    }
+    setTimeout(openWS,2500);
+  };
+  ws.onerror = () => ws.close();
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type==='monitors') {
+      const sel = document.getElementById('mon-select');
+      sel.innerHTML = msg.list.map(m=>`<option value="${m.index}">Schermo ${m.index+1} (${m.width}x${m.height})</option>`).join('');
+      sel.value = msg.current;
+      return;
+    }
+    if (msg.type==='frame') {
+      const prevSw = sw, prevSh = sh;
+      sw=msg.sw; sh=msg.sh;
+      const img=new Image();
+      img.onload=()=>{
+        canvas.width=img.width; canvas.height=img.height;
+        ctx.drawImage(img,0,0);
+        if(sw!==prevSw || sh!==prevSh) fitCanvas();
+      };
+      img.src='data:image/jpeg;base64,'+msg.data;
+    }
+  };
+}
+
+function send(o) { if(ws?.readyState===1) ws.send(JSON.stringify(o)); }
+
+function sendConfig() {
+  const fps=+document.getElementById('r-fps').value,
+        q  =+document.getElementById('r-qual').value,
+        sc =+document.getElementById('r-scale').value,
+        mon=+document.getElementById('mon-select').value;
+  document.getElementById('v-fps').textContent  = fps;
+  document.getElementById('v-qual').textContent = q;
+  document.getElementById('v-scale').textContent= Math.round(sc*100)+'%';
+  send({type:'config',fps,quality:q,scale:sc,monitor:mon});
+}
+
+// ── CLIPBOARD ────────────────────────────────────────────────────────────
+async function copyFromMac() {
+  const r = await fetch('/clipboard',{headers:{'X-Token':token}});
+  const {text} = await r.json();
+  await navigator.clipboard.writeText(text).catch(()=>{});
+  alert('Copiato negli appunti del browser:\n'+text.slice(0,120));
+}
+async function pasteToMac() {
+  const text = await navigator.clipboard.readText().catch(()=>'');
+  await fetch('/clipboard',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({text})});
+}
+
+// ── DESKTOP MOUSE ────────────────────────────────────────────────────────
+function relPos(e) {
+  const r = canvas.getBoundingClientRect();  // già il rettangolo esatto senza bordi
+  return { x: Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),
+           y: Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)) };
+}
+function inCanvas(e) {
+  const r = canvas.getBoundingClientRect();
+  return e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+}
+const BTN=['left','middle','right'];
+
+canvas.addEventListener('mousemove', e=>{
+  dCur.style.left=e.clientX+'px'; dCur.style.top=e.clientY+'px';
+  const p=relPos(e); cx=p.x; cy=p.y;
+  send({type:'mouse_move',...p});
+  if (zoomEnabled) {
+    updateCanvasPosition(parseFloat(canvas.style.width), parseFloat(canvas.style.height));
+  }
+});
+canvas.addEventListener('mousedown',   e=>{ e.preventDefault(); const p=relPos(e); cx=p.x;cy=p.y; send({type:'mouse_down',...p,button:BTN[e.button]}); });
+canvas.addEventListener('mouseup',     e=>{ const p=relPos(e); send({type:'mouse_up',...p,button:BTN[e.button]}); });
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+canvas.addEventListener('wheel',       e=>{ e.preventDefault(); send({type:'scroll',...relPos(e),dy:-Math.sign(e.deltaY)*3}); },{passive:false});
+canvas.addEventListener('mouseenter',  ()=>dCur.style.opacity='1');
+canvas.addEventListener('mouseleave',  ()=>dCur.style.opacity='0');
+
+// ── WIN KB MODE: remap tasti Windows → Mac ───────────────────────────────
+let winKb = false;
+function toggleWinKb() {
+  winKb = !winKb;
+  document.getElementById('win-kb-btn').classList.toggle('active', winKb);
+}
+
+// Con winKb attivo:
+//   Ctrl  → Command (⌘)   — es. Ctrl+C = ⌘C
+//   Win   → Command (⌘)
+//   Alt   → Option  (⌥)
+//   AltGr → Option  (⌥)
+// I tasti Ctrl/Win/Alt vengono "consumati" come modificatori Mac
+// e non inviati come key_down separati se già gestiti come mod
+
+function remapMods(e) {
+  if (!winKb) return activeMods(e);
+  const m = [];
+  if (e.shiftKey)                          m.push('shift');
+  if (e.ctrlKey || e.metaKey)              m.push('command'); // Ctrl o Win → ⌘
+  if (e.altKey)                            m.push('alt');     // Alt → ⌥
+  return m;
+}
+
+function remapKey(e) {
+  if (!winKb) return mapKey(e);
+  if (e.key === 'Control') return 'command';
+  if (e.key === 'Meta')    return 'command';
+  return mapKey(e);
+}
+
+// Usa e.code (posizione fisica) invece di e.key (carattere layout)
+// così funziona correttamente con qualsiasi layout (IT, DE, FR…)
+function physicalKey(e) {
+  // modificatori e tasti speciali: usa key
+  if (e.code === 'Space')       return 'space';
+  if (e.code === 'Enter')       return 'enter';
+  if (e.code === 'NumpadEnter') return 'enter';
+  if (e.code === 'Backspace')   return 'backspace';
+  if (e.code === 'Tab')         return 'tab';
+  if (e.code === 'Escape')      return 'esc';
+  if (e.code === 'Delete')      return 'delete';
+  if (e.code === 'Home')        return 'home';
+  if (e.code === 'End')         return 'end';
+  if (e.code === 'PageUp')      return 'pageup';
+  if (e.code === 'PageDown')    return 'pagedown';
+  if (e.code === 'ArrowLeft')   return 'left';
+  if (e.code === 'ArrowRight')  return 'right';
+  if (e.code === 'ArrowUp')     return 'up';
+  if (e.code === 'ArrowDown')   return 'down';
+  if (e.code === 'CapsLock')    return 'capslock';
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight')     return 'shift';
+  if (e.code === 'ControlLeft'|| e.code === 'ControlRight')  return winKb ? 'command' : 'ctrl';
+  if (e.code === 'AltLeft'    || e.code === 'AltRight')      return 'alt';
+  if (e.code === 'MetaLeft'   || e.code === 'MetaRight')     return 'command';
+  const fm = e.code.match(/^F(\d+)$/);
+  if (fm) return 'f' + fm[1];
+  // lettere: KeyA→a, KeyB→b …
+  const lm = e.code.match(/^Key([A-Z])$/);
+  if (lm) return lm[1].toLowerCase();
+  // cifre: Digit1→1 …
+  const dm = e.code.match(/^Digit(\d)$/);
+  if (dm) return dm[1];
+  // Numpad
+  const nm = e.code.match(/^Numpad(\d)$/);
+  if (nm) return nm[1];
+  // simboli per posizione fisica (US layout code → nome macOS keymap)
+  const SYM = {
+    'Minus':'minus','Equal':'equal','BracketLeft':'[','BracketRight':']',
+    'Backslash':'\\','Semicolon':';','Quote':"'",'Comma':',','Period':'.','Slash':'/',
+    'Backquote':'`','NumpadAdd':'+','NumpadSubtract':'minus','NumpadMultiply':'*',
+    'NumpadDivide':'/','NumpadDecimal':'.',
+  };
+  return SYM[e.code] ?? e.key.toLowerCase();
+}
+
+// ── DESKTOP KEYBOARD ─────────────────────────────────────────────────────
+const KMAP = {
+  ' ':'space','Enter':'enter','Backspace':'backspace','Tab':'tab',
+  'ArrowLeft':'left','ArrowRight':'right','ArrowUp':'up','ArrowDown':'down',
+  'Escape':'esc','Meta':'command','Control':'ctrl','Alt':'alt','Shift':'shift',
+  'Delete':'delete','Home':'home','End':'end','PageUp':'pageup','PageDown':'pagedown',
+  'CapsLock':'capslock',
+};
+for(let i=1;i<=20;i++) KMAP[`F${i}`]=`f${i}`;
+
+function mapKey(e){ return KMAP[e.key] ?? e.key.toLowerCase(); }
+
+function activeMods(e) {
+  const m=[];
+  if(e.shiftKey)   m.push('shift');
+  if(e.ctrlKey)    m.push('ctrl');
+  if(e.altKey)     m.push('alt');
+  if(e.metaKey)    m.push('command');
+  return m;
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.target===ghost||document.getElementById('login').style.display!=='none') return;
+  e.preventDefault();
+  send({type:'key_down', key:physicalKey(e), mods:remapMods(e)});
+});
+document.addEventListener('keyup', e=>{
+  if(e.target===ghost||document.getElementById('login').style.display!=='none') return;
+  send({type:'key_up', key:physicalKey(e), mods:remapMods(e)});
+});
+
+// ── TOUCH TRACKPAD ───────────────────────────────────────────────────────
+const SPEED = 1.6;
+let lt=null, tapMoved=false, tapTimer=null, lastTwoY=null, lastTap=0;
+
+function moveCursor(dx,dy){
+  cx=Math.max(0,Math.min(1,cx+dx));
+  cy=Math.max(0,Math.min(1,cy+dy));
+  send({type:'mouse_move',x:cx,y:cy});
+  if (zoomEnabled) {
+    updateCanvasPosition(parseFloat(canvas.style.width), parseFloat(canvas.style.height));
+  }
+  const r=canvas.getBoundingClientRect();
+  tCur.style.left=(r.left+cx*r.width)+'px';
+  tCur.style.top =(r.top +cy*r.height)+'px';
+  tCur.style.display='block';
+}
+
+wrap.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  if(e.touches.length===1){
+    const t=e.touches[0]; lt={x:t.clientX,y:t.clientY}; tapMoved=false;
+    tapTimer=setTimeout(()=>{
+      send({type:'mouse_down',x:cx,y:cy,button:'right'});
+      send({type:'mouse_up',  x:cx,y:cy,button:'right'});
+      tapTimer=null;
+    },550);
+  } else if(e.touches.length===2){
+    clearTimeout(tapTimer); tapTimer=null;
+    lastTwoY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+  }
+},{passive:false});
+
+wrap.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(e.touches.length===1 && lt){
+    const t=e.touches[0];
+    const dx=(t.clientX-lt.x)/wrap.clientWidth *SPEED;
+    const dy=(t.clientY-lt.y)/wrap.clientHeight*SPEED;
+    if(Math.abs(dx)>.0008||Math.abs(dy)>.0008) tapMoved=true;
+    moveCursor(dx,dy);
+    lt={x:t.clientX,y:t.clientY};
+  } else if(e.touches.length===2 && lastTwoY!=null){
+    const cy2=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    const d=lastTwoY-cy2;
+    if(Math.abs(d)>4){ send({type:'scroll',x:cx,y:cy,dy:Math.sign(d)*3}); lastTwoY=cy2; }
+  }
+},{passive:false});
+
+wrap.addEventListener('touchend', e=>{
+  e.preventDefault();
+  if(e.touches.length===0){
+    if(tapTimer){ clearTimeout(tapTimer); tapTimer=null;
+      if(!tapMoved){ send({type:'mouse_down',x:cx,y:cy,button:'left'}); send({type:'mouse_up',x:cx,y:cy,button:'left'}); }
+    }
+    lt=null;
+    setTimeout(()=>tCur.style.display='none',1200);
+    // doppio tap → tastiera
+    const now=Date.now();
+    if(now-lastTap<300 && !tapMoved) toggleKb();
+    lastTap=now;
+  }
+},{passive:false});
+
+// ── MOBILE KEYBOARD (ghost input) ────────────────────────────────────────
+function toggleKb(){
+  kbOpen=!kbOpen;
+  document.getElementById('kb-btn').style.background=kbOpen?'#0078d4':'';
+  if(kbOpen){
+    ghost.style.top='10px';   // portalo nel viewport visibile
+    ghost.focus();
+    ghost.value=ghostVal='     ';
+  } else {
+    ghost.blur();
+    ghost.style.top='-200px';
+  }
+}
+
+ghost.addEventListener('input', ()=>{
+  const v=ghost.value;
+  const prev=ghostVal;
+  if(v.length>prev.length){
+    // caratteri aggiunti
+    const added=v.slice(Math.max(0,prev.length));
+    for(const ch of added){
+      if(ch!==' ') send({type:'key_down',key:ch,mods:[]});
+      send({type:'key_up',key:ch,mods:[]});
+    }
+  } else if(v.length<prev.length){
+    send({type:'key_down',key:'backspace',mods:[]});
+    send({type:'key_up',  key:'backspace',mods:[]});
+  }
+  // mantieni padding minimo per rilevare backspace anche a inizio campo
+  if(v.length<5){ ghost.value=ghostVal='     '; }
+  else ghostVal=v;
+});
+
+ghost.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ send({type:'key_down',key:'enter',mods:[]}); send({type:'key_up',key:'enter',mods:[]}); }
+});
+
+// ── VISUAL VIEWPORT: mobile bar segue la tastiera ────────────────────────
+if(window.visualViewport){
+  const update=()=>{
+    const kh=window.innerHeight-window.visualViewport.height;
+    mBar.style.bottom=kh+'px';
+  };
+  window.visualViewport.addEventListener('resize', update);
+  window.visualViewport.addEventListener('scroll', update);
+}
+
+// ── HELPER TASTI RAPIDI ───────────────────────────────────────────────────
+function combo(...keys){
+  const mods=keys.slice(0,-1), key=keys[keys.length-1];
+  send({type:'key_combo', key, mods});
+}
+function tap(key){ send({type:'key_down',key,mods:[]}); send({type:'key_up',key,mods:[]}); }
+function rightClick(){ send({type:'mouse_down',x:cx,y:cy,button:'right'}); send({type:'mouse_up',x:cx,y:cy,button:'right'}); }
+
+document.getElementById('pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') connect(); });
+
+// ── Nascondi contenuto quando tab non è in primo piano (miniatura Windows) ──
+const overlay = document.createElement('div');
+overlay.style.cssText = 'position:fixed;inset:0;background:#0d0d0d;z-index:9999;display:none;';
+document.body.appendChild(overlay);
+
+document.addEventListener('visibilitychange', () => {
+  overlay.style.display = document.hidden ? 'block' : 'none';
+});
+window.addEventListener('blur', () => { overlay.style.display = 'block'; });
+window.addEventListener('focus', () => { overlay.style.display = 'none'; });
+</script>
+</body>
+</html>
