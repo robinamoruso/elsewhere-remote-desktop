@@ -1040,6 +1040,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             a.runModal()
             return
         }
+        let oldPassword = password, oldLan = lanEnabled
+        let oldName = namedTunnelName, oldHost = namedTunnelHost
+
         saveConfig([
             "ELSEWHERE_PASSWORD": pw,
             "TELEGRAM_TOKEN": fTgToken.stringValue.trimmingCharacters(in: .whitespaces),
@@ -1050,9 +1053,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ])
         settingsWindow?.orderOut(nil)
         localMenuItem?.title = "🏠 Local network: \(lanLabel)"
-        appLog("configurazione salvata, riavvio del servizio")
-        startServices()   // password e bind si applicano solo al riavvio del server
-        sendNotification(title: "Elsewhere", subtitle: "Settings saved", message: "Service restarting with the new settings")
+
+        // Si riavvia il minimo indispensabile: cambiare password non deve
+        // costare un link nuovo (il tunnel punta sempre a 127.0.0.1:porta)
+        let tunnelChanged = oldName != namedTunnelName || oldHost != namedTunnelHost
+        let serverChanged = oldPassword != password || oldLan != lanEnabled
+        if tunnelChanged {
+            appLog("impostazioni salvate: tunnel cambiato, riavvio tutto")
+            startServices()
+            sendNotification(title: "Elsewhere", subtitle: "Settings saved", message: "New tunnel, the link will change")
+        } else if serverChanged {
+            appLog("impostazioni salvate: riavvio del solo server, link invariato")
+            serverProcess?.terminate()
+            killServerProcesses()
+            startServer()
+            sendNotification(title: "Elsewhere", subtitle: "Settings saved", message: "Server restarted, the link stays the same")
+        } else {
+            appLog("impostazioni salvate: nessun riavvio necessario")
+            sendNotification(title: "Elsewhere", subtitle: "Settings saved", message: "Nothing to restart")
+        }
     }
 
     // ── Avvio automatico al login ────────────────────────────────────────────
