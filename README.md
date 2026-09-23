@@ -59,7 +59,7 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.
 - **No limits.** No session timeouts, no "commercial use detected" warning, no device cap.
 - **Scriptable.** Anything that can open a WebSocket, such as a script, a bot or an AI agent, can see the screen and drive the Mac (see [Protocol](#protocol)).
-- **Small enough to own.** About 2,000 lines and 5 Python dependencies. You can audit it in an afternoon.
+- **Small enough to own.** About 2,400 lines and 5 Python dependencies. You can audit it in an afternoon.
 
 ## Design decisions (and why)
 
@@ -78,10 +78,10 @@ WebRTC relies on UDP, STUN and TURN, and that's exactly what firewalls block. A 
 Events go straight into the macOS event system. That means no automation-library overhead, no cursor jumping, correct multi-monitor coordinates, and real modifier keys.
 
 **A native Swift menu bar app instead of Electron.**
-It's one Swift file of about 1,000 lines using only AppKit, Foundation and IOKit. It starts instantly, stays light, and uses real macOS APIs for anti-sleep (IOKit power assertions) and for sleep and wake events.
+It's one Swift file of about 1,100 lines using only AppKit, Foundation and IOKit. It starts instantly, stays light, and uses real macOS APIs for anti-sleep (IOKit power assertions) and for sleep and wake events.
 
 **Python for the server.**
-`mss` captures the screen, `pyobjc` calls Quartz, and FastAPI handles HTTP and WebSockets in about 260 lines. There are 5 dependencies and no build step.
+`mss` captures the screen, `pyobjc` calls Quartz, and FastAPI handles HTTP and WebSockets in about 370 lines. There are 5 dependencies and no build step.
 
 **One HTML file for the client.**
 Vanilla JavaScript, no framework, no bundler, no `node_modules`. The server sends the page on connect, so it works in Safari on iOS, Chrome on Android, or a locked-down work laptop.
@@ -156,7 +156,7 @@ Then add `ELSEWHERE_TUNNEL_NAME=elsewhere` and `ELSEWHERE_TUNNEL_HOST=desk.examp
 
 ## Security
 
-**The idea in short.** Elsewhere leaves no permanent way in. Your router stays closed, nothing listens on your network unless you ask, and the tunnel only exists while the app runs. What's reachable is a single page, behind a single password, at a random URL you can throw away whenever you like. That password is the whole perimeter, so everything else follows from protecting it: it's generated long and random, wrong guesses are slowed to one per second, sessions expire and get closed, and every attempt ends up in a log. And since the whole thing is about 2,000 lines, you don't have to take my word for any of it.
+**The idea in short.** Elsewhere leaves no permanent way in. Your router stays closed, nothing listens on your network unless you ask, and the tunnel only exists while the app runs. What's reachable is a single page, behind a single password, at a random URL you can throw away whenever you like. That password is the whole perimeter, so everything else follows from protecting it: it's generated long and random, wrong guesses are slowed to one per second, sessions expire and get closed, and every attempt ends up in a log. And since the whole thing is about 2,400 lines, you don't have to take my word for any of it.
 
 Concretely:
 
@@ -243,11 +243,11 @@ Elsewhere.app (Swift) ── starts, watches and heals ──▶ server.py + clo
 
 | File | Lines | Role |
 |---|---|---|
-| `Elsewhere.swift` | ~1,000 | menu bar app, process supervision, watchdog, anti-sleep, Telegram |
-| `server.py` | ~260 | auth, WebSocket streaming, native input, clipboard |
-| `static/index.html` | ~560 | the whole web client |
-| `create_app_bundle.py` | ~110 | icon, `Info.plist`, `swiftc`, codesign, install |
-| `install.sh` / `start.sh` | ~95 | setup and terminal mode |
+| `Elsewhere.swift` | ~1,080 | menu bar app, process supervision, watchdog, anti-sleep, Telegram |
+| `server.py` | ~370 | auth, WebSocket streaming, native input, clipboard |
+| `static/index.html` | ~680 | the whole web client |
+| `create_app_bundle.py` | ~120 | icon, `Info.plist`, `swiftc`, codesign, install |
+| `install.sh` / `start.sh` | ~105 | setup and terminal mode |
 | `test_auto_quality.js` | ~30 | `node test_auto_quality.js` checks the adaptive logic |
 
 Logs are written to `~/.elsewhere/server.log` and `tunnel.log`.
