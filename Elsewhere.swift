@@ -170,8 +170,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         localMenuItem = NSMenuItem(title: "🏠 Rete locale: \(lanLabel)", action: #selector(copyLocalLink), keyEquivalent: "")
         menu.addItem(localMenuItem)
         
-        pwdMenuItem = NSMenuItem(title: "🔑 Password: \(password)", action: #selector(copyPassword), keyEquivalent: "")
+        pwdMenuItem = NSMenuItem(title: "🔑 Copia password", action: #selector(copyPassword), keyEquivalent: "")
         menu.addItem(pwdMenuItem)
+
+        let showPwdItem = NSMenuItem(title: "👁 Mostra password…", action: #selector(showPassword), keyEquivalent: "")
+        menu.addItem(showPwdItem)
         menu.addItem(NSMenuItem.separator())
         
         antiSleepMenuItem = NSMenuItem(title: "⚡ Anti-Standby: 🟢 Attivo", action: #selector(toggleAntiSleep), keyEquivalent: "")
@@ -287,7 +290,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.addSubview(copyLocBtn)
         
         let pwdField = NSTextField(frame: NSRect(x: 24, y: h - 286, width: 330, height: 26))
-        pwdField.stringValue = "Password: \(password)"
+        pwdField.stringValue = "Password: ••••••••  (in chiaro dal menu 👁)"
         pwdField.font = NSFont.systemFont(ofSize: 12)
         pwdField.isEditable = false; pwdField.isSelectable = true
         content.addSubview(pwdField)
@@ -744,6 +747,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         sendNotification(title: "Elsewhere", subtitle: "Password Copiata", message: "Negli appunti")
     }
     
+    // In chiaro solo su richiesta esplicita: il pannello finisce nei frame
+    // inviati a chi è collegato da remoto
+    @objc func showPassword() {
+        let alert = NSAlert()
+        alert.messageText = "🔑 Password di Elsewhere"
+        alert.informativeText = password
+        alert.addButton(withTitle: "📋 Copia")
+        alert.addButton(withTitle: "Chiudi")
+        if alert.runModal() == .alertFirstButtonReturn { copyPassword() }
+    }
+
     @objc func regenerateLink() {
         guard isRunning else {
             startServices()

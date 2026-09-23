@@ -171,23 +171,24 @@ Concretely:
 - **No inbound ports** on your router, and the tunnel only exists while the service runs.
 - **Disposable links:** *Rigenera* kills the current URL and issues a new one.
 - **Privacy screen:** the page blanks when the tab loses focus, so a taskbar thumbnail doesn't show your desktop.
+- **Uploads are contained:** a dropped file needs a token, is streamed to disk instead of memory, is stripped to its bare filename (no `../`), never overwrites an existing file, and can only land in `~/Downloads`.
+- **The password is never displayed** in the menu or panel unless you ask for it, and it's never sent to Telegram or written to a notification.
 - **Secrets stay local:** `~/.elsewhere` is `700` and `.env` is `600`.
 
 For a permanent domain, put [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/) in front of it (email one-time code or SSO) as a free second factor.
 
 Know the tradeoffs:
 
-- **Cloudflare terminates TLS**, so the tunnel provider can technically see the traffic. That's the price of not opening a port.
-- **The LAN link, if you enable it, is plain HTTP.** Your password and screen travel unencrypted on the local network. Only turn it on at home, and never on shared Wi-Fi.
-- **The password is visible in the menu bar**, so don't open the panel while a remote session is watching. Telegram only receives the link, never the password.
-- **The app is signed ad hoc.** Anything already running as your user could replace the bundled `server.py` and inherit Elsewhere's Screen Recording and Accessibility permissions. A Developer ID signature with hardened runtime would close that, and needs a paid Apple account.
+- **Cloudflare terminates TLS**, so the tunnel provider can technically see the traffic. Every clientless browser solution has this property, including Cloudflare's own and anything built on Guacamole; the alternative is a peer-to-peer design that stops working on restrictive networks. If that's unacceptable, use a fixed domain with Cloudflare Access, or reach the Mac over a VPN you control.
+- **`ELSEWHERE_BIND=0.0.0.0` is plain HTTP.** It's off by default, and you rarely need it: the HTTPS tunnel works just as well while you're at home. Turn it on only if you want the Mac reachable with the internet down, and only on a network you trust.
+- **The app is signed ad hoc.** Anything already running as your user could replace the bundled `server.py` and inherit Elsewhere's Screen Recording and Accessibility permissions. Closing that needs a Developer ID signature, which needs a paid Apple account.
 - **Whoever gets in has your Mac**, with Screen Recording and Accessibility. There are no read-only or limited sessions.
 
 ## When to use something else
 
 - **You need audio, or files coming back from the Mac:** not built in (you can only send files *to* it).
 - **You manage many machines or several users:** use a fleet tool.
-- **You're on a very slow connection:** a video codec (Parsec, RustDesk, Screen Sharing) will look better. Lowering FPS and quality here helps, but it has limits.
+- **You're on a very slow connection:** a video codec (Parsec, RustDesk, Screen Sharing) will look better. Identical frames are skipped and the sliders go a long way, but a JPEG stream can't match H.264 on a busy screen.
 - **You're not on macOS:** Elsewhere relies on Quartz, IOKit and `pbcopy`.
 
 To be clear about the networks: a proxy that inspects TLS or filters by category can still block the `trycloudflare.com` domain. A [custom domain](#a-permanent-url-on-your-own-domain) looks like any other website. And respect the policies of the networks you use: Elsewhere is for reaching *your own* Mac.
