@@ -37,7 +37,7 @@ Unico test: `node test_auto_quality.js` (logica della qualità adattiva, estratt
 - Stringhe visibili all'utente (menu, pannello, client web) e log in **inglese**; i commenti nel codice restano in italiano.
 - Pochi file e zero dipendenze nuove: Swift solo AppKit/Foundation/IOKit, client senza framework.
 - Dopo ogni modifica a `server.py` o `static/` bisogna **ricostruire l'app**, altrimenti gira la copia vecchia nel bundle.
-- La firma è ad hoc, quindi un rebuild può invalidare i permessi TCC (Registrazione schermo, Accessibilità). Se input o cattura smettono di funzionare, rimuovi e riaggiungi l'app nelle impostazioni.
+- TCC lega i permessi al *requisito designato* della firma. Con `./signing-cert.sh` si crea un certificato autofirmato e `create_app_bundle.py` lo usa: il requisito diventa `identifier "io.github.elsewhere" and certificate leaf = H"…"`, stabile tra le build. Senza certificato si torna alla firma ad hoc e macOS richiede i permessi a ogni ricompilazione (`tccutil reset ScreenCapture io.github.elsewhere` per ripulire le voci vecchie).
 - Non uccidere processi generici: `pkill` solo su `tunnelProcessPattern` e `lsof -sTCP:LISTEN` sulla porta, per non chiudere altri tunnel o server dell'utente.
 - Tastiera: il client invia la **posizione fisica** (`e.code`) e `KEYMAP` in `server.py` la traduce in keycode macOS (layout US). Nuovi tasti vanno aggiunti in entrambi.
 - I frame sono messaggi WebSocket **binari** (JPEG puro); `size` arriva come JSON solo quando cambia la risoluzione. Il client decodifica con `createImageBitmap`, con un contatore che scarta i frame decodificati in ritardo.

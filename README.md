@@ -116,7 +116,7 @@ Open **Elsewhere**, then grant the two permissions macOS asks for in *System Set
 
 Quit and reopen the app from the menu bar. Once the 🖥 icon stops showing `…`, the public link is in your clipboard.
 
-> The app is signed ad hoc, so macOS may ask for the permissions again after a rebuild. If input stops working, remove Elsewhere from both lists and add it again.
+> **Run `./signing-cert.sh` once** if you plan to rebuild the app. macOS ties those permissions to the code signature, and an ad-hoc signature changes on every build, so it asks again every time. The script creates a self-signed certificate (no Apple developer account needed) that keeps the app's identity stable, and `create_app_bundle.py` picks it up automatically.
 
 **Without the app:** `./start.sh` runs the server and the tunnel in a terminal. It's handy while developing. In that case, grant the two permissions to your terminal app.
 
@@ -250,6 +250,7 @@ Elsewhere.app (Swift) ── starts, watches and heals ──▶ server.py + clo
 | `static/index.html` | ~680 | the whole web client |
 | `create_app_bundle.py` | ~120 | icon, `Info.plist`, `swiftc`, codesign, install |
 | `install.sh` / `start.sh` | ~105 | setup and terminal mode |
+| `signing-cert.sh` | ~40 | one-off self-signed certificate, so TCC permissions survive rebuilds |
 | `test_auto_quality.js` | ~30 | `node test_auto_quality.js` checks the adaptive logic |
 
 Logs are written to `~/.elsewhere/`: `server.log` (logins and sessions), `tunnel.log` (cloudflared) and `app.log` (what the menu bar app is doing). If something doesn't work, `app.log` is the place to look first.

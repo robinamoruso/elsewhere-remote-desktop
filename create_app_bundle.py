@@ -103,7 +103,17 @@ shutil.copytree(ROOT / "static", RESOURCES / "static")
 
 # Firma dopo aver copiato tutto (xattr della Scrivania bloccano codesign)
 subprocess.run(["xattr", "-cr", str(APP_DIR)], check=True)
-subprocess.run(["codesign", "--force", "--deep", "-s", "-", str(APP_DIR)], check=True)
+
+# Con un'identità stabile i permessi TCC (Registrazione schermo, Accessibilità)
+# sopravvivono alle ricompilazioni; con la firma ad hoc macOS li richiede ogni volta.
+IDENTITY = "Elsewhere Self-Signed"
+identities = subprocess.run(["security", "find-identity", "-v", "-p", "codesigning"],
+                            capture_output=True, text=True).stdout
+signer = IDENTITY if IDENTITY in identities else "-"
+if signer == "-":
+    print("⚠️  Nessun certificato: firma ad hoc, macOS richiederà i permessi a ogni build.")
+    print("   Crealo una volta sola con ./signing-cert.sh")
+subprocess.run(["codesign", "--force", "--deep", "-s", signer, str(APP_DIR)], check=True)
 print(f"✅ Bundle creato con successo: {APP_DIR}")
 
 # Su CI si costruisce soltanto: niente installazione
