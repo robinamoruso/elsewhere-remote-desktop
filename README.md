@@ -52,10 +52,11 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **It stays up on its own.** A watchdog checks every 30 seconds that the server responds *and* that the public URL answers from the outside, and restarts whichever part broke. It also rebuilds the tunnel after the Mac wakes from sleep.
 - **The link comes to you.** When the URL changes, the new one lands in your Telegram, so you never need to know it in advance.
 - **Links are disposable.** The URL is random. If you think it leaked, press *Rigenera* and the old one stops working within seconds.
-- **No black screen.** Optional anti-sleep keeps the Mac and its display awake, and every connection wakes the screen. Together with the watchdog, that makes an always-on Mac mini reachable at any time.
+- **No black screen.** Optional anti-sleep keeps the Mac and its display awake, and every connection wakes the screen. With the watchdog and *Avvia al login*, an always-on Mac mini stays reachable across reboots.
 - **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, long-press for right-click, two fingers to scroll, double-tap for the keyboard, plus a bar with ⌘C, ⌘V, ⌘Z, ⌘Space and the arrow keys.
 - **Any keyboard layout.** Keys are sent by *physical position*, so Italian, German and French keyboards just work. *Win KB* mode maps Ctrl to ⌘ when you connect from a Windows PC.
-- **Clipboard both ways**, multiple monitors, FPS, quality and scale sliders, and a zoom that follows the cursor.
+- **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
+- **Clipboard both ways**, multiple monitors, FPS, quality and scale sliders, a live fps/bandwidth readout, and a zoom that follows the cursor.
 - **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.
 - **No limits.** No session timeouts, no "commercial use detected" warning, no device cap.
 - **Scriptable.** Anything that can open a WebSocket, such as a script, a bot or an AI agent, can see the screen and drive the Mac (see [Protocol](#protocol)).
@@ -104,6 +105,8 @@ The installer:
 - creates `~/.elsewhere` with a virtualenv
 - **generates a random password** and prints it once
 - builds `Elsewhere.app` and puts it in `/Applications`
+
+Prefer a prebuilt app? Take `Elsewhere.zip` from [Releases](https://github.com/robinamoruso/elsewhere-remote-desktop/releases), unzip it into `/Applications` and run `xattr -dr com.apple.quarantine /Applications/Elsewhere.app`, since it isn't signed with a Developer ID. You still need `./install.sh` once, for the virtualenv and the password.
 
 Open **Elsewhere**, then grant the two permissions macOS asks for in *System Settings → Privacy & Security*:
 
@@ -182,7 +185,7 @@ Know the tradeoffs:
 
 ## When to use something else
 
-- **You need audio or file transfer:** not built in.
+- **You need audio, or files coming back from the Mac:** not built in (you can only send files *to* it).
 - **You manage many machines or several users:** use a fleet tool.
 - **You're on a very slow connection:** a video codec (Parsec, RustDesk, Screen Sharing) will look better. Lowering FPS and quality here helps, but it has limits.
 - **You're not on macOS:** Elsewhere relies on Quartz, IOKit and `pbcopy`.
@@ -206,6 +209,8 @@ To be clear about the networks: a proxy that inspects TLS or filters by category
 | you → Mac | `{"type":"key_down" / "key_up","key":"a","mods":["command","shift"]}` |
 | you → Mac | `{"type":"key_combo","key":"space","mods":["command"]}` |
 | you → Mac | `{"type":"wake"}` |
+
+`POST /upload`, with an `X-Token` header, a percent-encoded `X-Filename` and the file as the raw body, saves it to `~/Downloads`.
 
 `GET` and `POST /clipboard`, with an `X-Token` header, read and write the Mac's clipboard.
 

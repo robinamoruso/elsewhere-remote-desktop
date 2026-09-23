@@ -8,6 +8,7 @@ Elsewhere Remote Desktop — remote desktop per macOS via browser: app Swift nel
 - `server.py` — FastAPI: `POST /auth` → token; `GET/POST /clipboard` (header `X-Token`); `WS /ws/{token}` per frame JPEG (mss + Pillow) e input (Quartz `CGEvent`).
 - `static/index.html` — client web in un unico file, JS vanilla, nessuna build.
 - `create_app_bundle.py` — genera icona, Info.plist, compila con `swiftc`, copia `server.py` + `static/` in `Contents/Resources`, firma ad hoc, installa in `/Applications`.
+- `.github/workflows/release.yml` — su tag `v*` costruisce l'app su runner macOS (`create_app_bundle.py --no-install`) e allega lo zip alla release.
 - `install.sh` — venv e `.env` in `~/.elsewhere`, poi build. `start.sh` — modalità terminale senza app.
 
 ## Runtime
