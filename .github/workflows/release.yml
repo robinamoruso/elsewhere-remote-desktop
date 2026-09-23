@@ -28,14 +28,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" Elsewhere.zip --generate-notes --notes "
-          L'app non è firmata con un Developer ID, quindi al primo avvio macOS la blocca.
-          Sbloccala con:
+          cat > notes.md <<'NOTES'
+          Unsigned build: macOS blocks it on first launch. Unblock with
 
               xattr -dr com.apple.quarantine /Applications/Elsewhere.app
 
-          Poi serve comunque il setup: clona il repo ed esegui \`./install.sh\` per creare
-          il venv e la password in \`~/.elsewhere\`."
+          Then clone the repo and run `./install.sh --no-app` once, to create the
+          virtualenv and the password in `~/.elsewhere`.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+          gh release upload "$GITHUB_REF_NAME" Elsewhere.zip --clobber
 
       - uses: actions/upload-artifact@v4
         with:
