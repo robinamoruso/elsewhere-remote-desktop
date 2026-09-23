@@ -51,7 +51,7 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **The link comes to you.** When the URL changes, the new one lands in your Telegram, so you never need to know it in advance. Set it up in the app, no config file to edit.
 - **Links are disposable.** The URL is random. If you think it leaked, press *Rigenera* and the old one stops working within seconds.
 - **No black screen.** Optional anti-sleep keeps the Mac and its display awake, and every connection wakes the screen. With the watchdog and *Avvia al login*, an always-on Mac mini stays reachable across reboots.
-- **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, long-press for right-click, two fingers to scroll, double-tap for the keyboard, plus a bar with ⌘C, ⌘V, ⌘Z, ⌘Space and the arrow keys.
+- **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, double-tap to double-click, long-press for right-click, two fingers to scroll, and a bar with ⌘C, ⌘V, ⌘Z, ⌘Space, the arrow keys and the keyboard toggle.
 - **Any keyboard layout.** Keys are sent by *physical position*, so Italian, German and French keyboards just work. *Win KB* mode maps Ctrl to ⌘ when you connect from a Windows PC.
 - **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
 - **It tunes itself.** When the connection can't keep up, quality and scale step down on their own and climb back when it recovers. Touch a slider and it gets out of your way.

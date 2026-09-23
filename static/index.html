@@ -486,6 +486,7 @@ canvas.addEventListener('mousemove', e=>{
 });
 canvas.addEventListener('mousedown',   e=>{ e.preventDefault(); const p=relPos(e); cx=p.x;cy=p.y; send({type:'mouse_down',...p,button:BTN[e.button]}); });
 canvas.addEventListener('mouseup',     e=>{ const p=relPos(e); send({type:'mouse_up',...p,button:BTN[e.button]}); });
+canvas.addEventListener('dblclick',    e=>{ e.preventDefault(); const p=relPos(e); send({type:'mouse_down',...p,button:'left',clicks:2}); send({type:'mouse_up',...p,button:'left',clicks:2}); });
 canvas.addEventListener('contextmenu', e=>e.preventDefault());
 canvas.addEventListener('wheel',       e=>{ e.preventDefault(); send({type:'scroll',...relPos(e),dy:-Math.sign(e.deltaY)*3}); },{passive:false});
 canvas.addEventListener('mouseenter',  ()=>dCur.style.opacity='1');
@@ -654,9 +655,14 @@ wrap.addEventListener('touchend', e=>{
     }
     lt=null;
     setTimeout(()=>tCur.style.display='none',1200);
-    // doppio tap → tastiera
+    // Doppio tap = doppio clic, come su un trackpad. Prima apriva la tastiera,
+    // che quindi saltava fuori ogni volta che aprivi qualcosa. La tastiera si
+    // apre dal pulsante ⌨️ e basta.
     const now=Date.now();
-    if(now-lastTap<300 && !tapMoved) toggleKb();
+    if(now-lastTap<300 && !tapMoved){
+      send({type:'mouse_down',x:cx,y:cy,button:'left',clicks:2});
+      send({type:'mouse_up',  x:cx,y:cy,button:'left',clicks:2});
+    }
     lastTap=now;
   }
 },{passive:false});

@@ -10,7 +10,7 @@ from PIL import Image
 # ── Quartz.CoreGraphics per input nativo macOS (zero lag, avvio veloce) ──
 from Quartz.CoreGraphics import (
     CGEventCreateMouseEvent, CGEventPost, CGEventCreateKeyboardEvent,
-    CGEventSetFlags,
+    CGEventSetFlags, CGEventSetIntegerValueField, kCGMouseEventClickState,
     kCGEventMouseMoved, kCGEventLeftMouseDown, kCGEventLeftMouseUp,
     kCGEventRightMouseDown, kCGEventRightMouseUp,
     kCGEventOtherMouseDown, kCGEventOtherMouseUp,
@@ -182,7 +182,7 @@ def mouse_move(x, y):
     ev = CGEventCreateMouseEvent(None, kCGEventMouseMoved, pt, kCGMouseButtonLeft)
     CGEventPost(kCGHIDEventTap, ev)
 
-def mouse_click(down, x, y, button="left"):
+def mouse_click(down, x, y, button="left", clicks=1):
     mapping = {
         "left":   (kCGEventLeftMouseDown,  kCGEventLeftMouseUp,  kCGMouseButtonLeft),
         "right":  (kCGEventRightMouseDown, kCGEventRightMouseUp, kCGMouseButtonRight),
@@ -192,6 +192,10 @@ def mouse_click(down, x, y, button="left"):
     kind = dn if down else up
     pt = CGPoint(x=x, y=y)
     ev = CGEventCreateMouseEvent(None, kind, pt, btn)
+    # Senza click state macOS legge due clic vicini come due clic singoli,
+    # non come un doppio clic: niente apertura file, niente selezione parola
+    if clicks > 1:
+        CGEventSetIntegerValueField(ev, kCGMouseEventClickState, clicks)
     CGEventPost(kCGHIDEventTap, ev)
 
 def do_scroll(x, y, dy):
@@ -336,8 +340,8 @@ async def ws_endpoint(websocket: WebSocket, token: str):
                     x = mon["left"] + int(ev.get("x", 0) * mon["width"])
                     y = mon["top"]  + int(ev.get("y", 0) * mon["height"])
                     if   t == "mouse_move":  mouse_move(x, y)
-                    elif t == "mouse_down":  mouse_click(True,  x, y, ev.get("button","left"))
-                    elif t == "mouse_up":    mouse_click(False, x, y, ev.get("button","left"))
+                    elif t == "mouse_down":  mouse_click(True,  x, y, ev.get("button","left"), min(3, int(ev.get("clicks", 1))))
+                    elif t == "mouse_up":    mouse_click(False, x, y, ev.get("button","left"), min(3, int(ev.get("clicks", 1))))
                     elif t == "scroll":      do_scroll(x, y, int(ev.get("dy", 0)))
                     elif t == "key_down":    send_key(ev["key"], True,  build_flags(ev.get("mods",[])))
                     elif t == "key_up":      send_key(ev["key"], False, build_flags(ev.get("mods",[])))
