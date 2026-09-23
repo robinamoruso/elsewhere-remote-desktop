@@ -2,6 +2,7 @@ import Cocoa
 import Foundation
 import IOKit.pwr_mgt
 import ServiceManagement
+import ApplicationServices
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
@@ -20,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var antiSleepMenuItem: NSMenuItem!
     var wolMenuItem: NSMenuItem!
     var loginMenuItem: NSMenuItem!
+    var permissionsMenuItem: NSMenuItem!
 
     // Settings
     var settingsWindow: NSWindow?
@@ -146,7 +148,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // 3. Setup Wake / Sleep Observers
         setupWakeObservers()
         
-        // 4. Start Background Services & Anti-Sleep
+        // 4. Permessi: senza Accessibilità mouse e tastiera non funzionano e
+        //    macOS non avvisa in alcun modo
+        checkPermissions()
+
+        // 5. Start Background Services & Anti-Sleep
         if password.count < 8 || password == "changeme" {
             // Prima installazione: senza password il server rifiuta di partire
             showSettings()
@@ -249,6 +255,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(loginMenuItem)
         menu.addItem(NSMenuItem.separator())
         
+        permissionsMenuItem = NSMenuItem(title: "🔐 Permissions…", action: #selector(checkPermissions), keyEquivalent: "")
+        menu.addItem(permissionsMenuItem)
+
         let settingsItem = NSMenuItem(title: "⚙︎ Settings…", action: #selector(showSettings), keyEquivalent: ",")
         menu.addItem(settingsItem)
 
@@ -980,6 +989,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
          .replacingOccurrences(of: "\n", with: "\\n")
     }
     
+    // ── Permessi ─────────────────────────────────────────────────────────────
+    // La registrazione schermo la chiede macOS da sola alla prima cattura, ma
+    // l'Accessibilità no: CGEventPost senza permesso non mostra nulla, gli
+    // eventi vengono semplicemente ignorati. Va richiesta a mano.
+    @objc func checkPermissions() {
+        let screen = CGPreflightScreenCaptureAccess()
+        let input  = AXIsProcessTrusted()
+        appLog("permessi — schermo: \(screen ? "ok" : "MANCANTE"), input: \(input ? "ok" : "MANCANTE")")
+
+        if !screen { CGRequestScreenCaptureAccess() }
+        if !input {
+            // Il prompt di sistema, con il pulsante che porta alle impostazioni
+            let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(opts)
+        }
+        permissionsMenuItem?.title = "🔐 Permissions: screen \(screen ? "✅" : "❌")  input \(input ? "✅" : "❌")"
+    }
+
     // ── Settings ─────────────────────────────────────────────────────────────
     @objc func showSettings() {
         if settingsWindow == nil { buildSettingsWindow() }
