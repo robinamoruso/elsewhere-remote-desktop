@@ -601,7 +601,8 @@ document.addEventListener('keyup', e=>{
 
 // ── TOUCH TRACKPAD ───────────────────────────────────────────────────────
 const SPEED = 1.6;
-let lt=null, tapMoved=false, tapTimer=null, lastTwoY=null, lastTap=0;
+let lt=null, tapStart=null, tapMoved=false, tapTimer=null, lastTwoY=null, lastTap=0;
+const SLOP = 10;   // px oltre i quali non è più una pressione ferma, ma un trascinamento
 
 function moveCursor(dx,dy){
   cx=Math.max(0,Math.min(1,cx+dx));
@@ -619,7 +620,7 @@ function moveCursor(dx,dy){
 wrap.addEventListener('touchstart', e=>{
   e.preventDefault();
   if(e.touches.length===1){
-    const t=e.touches[0]; lt={x:t.clientX,y:t.clientY}; tapMoved=false;
+    const t=e.touches[0]; lt={x:t.clientX,y:t.clientY}; tapStart={x:t.clientX,y:t.clientY}; tapMoved=false;
     tapTimer=setTimeout(()=>{
       send({type:'mouse_down',x:cx,y:cy,button:'right'});
       send({type:'mouse_up',  x:cx,y:cy,button:'right'});
@@ -635,9 +636,13 @@ wrap.addEventListener('touchmove', e=>{
   e.preventDefault();
   if(e.touches.length===1 && lt){
     const t=e.touches[0];
+    // Trascinando si annulla il clic destro: prima il timer restava armato e
+    // il clic partiva appena il cursore era in posizione
+    const fromStart = Math.hypot(t.clientX - tapStart.x, t.clientY - tapStart.y);
+    if(fromStart > SLOP && tapTimer){ clearTimeout(tapTimer); tapTimer=null; }
     const dx=(t.clientX-lt.x)/wrap.clientWidth *SPEED;
     const dy=(t.clientY-lt.y)/wrap.clientHeight*SPEED;
-    if(Math.abs(dx)>.0008||Math.abs(dy)>.0008) tapMoved=true;
+    if(fromStart > 3) tapMoved=true;
     moveCursor(dx,dy);
     lt={x:t.clientX,y:t.clientY};
   } else if(e.touches.length===2 && lastTwoY!=null){
