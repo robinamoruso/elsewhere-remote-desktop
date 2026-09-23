@@ -106,7 +106,7 @@ The installer:
 - **generates a random password** and prints it once
 - builds `Elsewhere.app` and puts it in `/Applications`
 
-Prefer a prebuilt app? Take `Elsewhere.zip` from [Releases](https://github.com/robinamoruso/elsewhere-remote-desktop/releases), unzip it into `/Applications` and run `xattr -dr com.apple.quarantine /Applications/Elsewhere.app`, since it isn't signed with a Developer ID. You still need `./install.sh` once, for the virtualenv and the password.
+Prefer a prebuilt app? Take `Elsewhere.zip` from [Releases](https://github.com/robinamoruso/elsewhere-remote-desktop/releases), unzip it into `/Applications` and run `xattr -dr com.apple.quarantine /Applications/Elsewhere.app`, since it isn't signed with a Developer ID. Then run `./install.sh --no-app` once for the virtualenv and the password — no Xcode tools needed.
 
 Open **Elsewhere**, then grant the two permissions macOS asks for in *System Settings → Privacy & Security*:
 
