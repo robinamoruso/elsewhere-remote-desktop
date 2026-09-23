@@ -1,6 +1,7 @@
 import Cocoa
 import Foundation
 import IOKit.pwr_mgt
+import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
@@ -18,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var toggleMenuItem: NSMenuItem!
     var antiSleepMenuItem: NSMenuItem!
     var wolMenuItem: NSMenuItem!
+    var loginMenuItem: NSMenuItem!
     
     // Window elements
     var winStatusLabel: NSTextField!
@@ -177,6 +179,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         wolMenuItem = NSMenuItem(title: "📡 Dati Wake-on-LAN (WoL)...", action: #selector(showWoLInfo), keyEquivalent: "w")
         menu.addItem(wolMenuItem)
+
+        loginMenuItem = NSMenuItem(title: "🚀 Avvia al login", action: #selector(toggleLoginItem), keyEquivalent: "")
+        loginMenuItem.state = loginItemEnabled ? .on : .off
+        menu.addItem(loginMenuItem)
         menu.addItem(NSMenuItem.separator())
         
         let openWinItem = NSMenuItem(title: "🖥️ Apri Pannello di Controllo", action: #selector(showWindow), keyEquivalent: "p")
@@ -856,6 +862,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         task.resume()
     }
     
+    // ── Avvio automatico al login ────────────────────────────────────────────
+    var loginItemEnabled: Bool {
+        if #available(macOS 13.0, *) { return SMAppService.mainApp.status == .enabled }
+        return false
+    }
+
+    @objc func toggleLoginItem() {
+        guard #available(macOS 13.0, *) else {
+            sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Richiede macOS 13 o successivo")
+            return
+        }
+        do {
+            if loginItemEnabled {
+                try SMAppService.mainApp.unregister()
+                sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Disattivato")
+            } else {
+                try SMAppService.mainApp.register()
+                sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Elsewhere ripartirà da solo dopo un riavvio")
+            }
+        } catch {
+            sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Errore: \(error.localizedDescription)")
+        }
+        loginMenuItem.state = loginItemEnabled ? .on : .off
+    }
+
     // ── Anti-Sleep (IOKit Assertions) ─────────────────────────────────────────
     func enableSleepAssertion() {
         guard preventSleepEnabled && !hasSleepAssertion else { return }

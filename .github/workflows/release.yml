@@ -1,0 +1,43 @@
+name: Release
+
+# Su tag vX.Y.Z costruisce l'app e la allega alla release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - run: python3 -m pip install --quiet --break-system-packages pillow
+
+      - name: Costruisci Elsewhere.app
+        run: python3 create_app_bundle.py --no-install
+
+      - name: Comprimi
+        run: ditto -c -k --keepParent "build/Elsewhere.app" Elsewhere.zip
+
+      - name: Pubblica nella release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" Elsewhere.zip --generate-notes --notes "
+          L'app non è firmata con un Developer ID, quindi al primo avvio macOS la blocca.
+          Sbloccala con:
+
+              xattr -dr com.apple.quarantine /Applications/Elsewhere.app
+
+          Poi serve comunque il setup: clona il repo ed esegui \`./install.sh\` per creare
+          il venv e la password in \`~/.elsewhere\`."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Elsewhere-app
+          path: Elsewhere.zip

@@ -33,7 +33,8 @@ body { background:#0d0d0d; color:#eee; font-family:monospace; user-select:none; 
 #bar .btn:hover { background:#3a3a3a; }
 #bar .btn.active { background:#0078d4; border-color:#005fa3; color:#fff; }
 #bar select { background:#2a2a2a; border:1px solid #444; color:#ccc; border-radius:5px; font-size:11px; padding:2px 4px; }
-#status { margin-left:auto; font-size:12px; white-space:nowrap; }
+#stats { margin-left:auto; font-size:11px; color:#777; white-space:nowrap; }
+#status { font-size:12px; white-space:nowrap; }
 #status.on  { color:#2ecc71; }
 #status.off { color:#e74c3c; }
 
@@ -57,6 +58,14 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
 /* CURSORI */
 #desk-cursor { position:fixed; width:14px; height:14px; border:2px solid #0f0; border-radius:50%; pointer-events:none; transform:translate(-50%,-50%); z-index:99; opacity:0; }
 #touch-cursor { position:fixed; width:18px; height:18px; border:2px solid #00ff88; border-radius:50%; background:rgba(0,255,136,0.2); box-shadow:0 0 8px #00ff88; pointer-events:none; transform:translate(-50%,-50%); z-index:99; display:none; }
+
+/* DROP FILE */
+#drop-hint {
+  display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center;
+  background:rgba(0,120,212,0.25); border:3px dashed #0078d4; font-size:20px; color:#fff;
+  pointer-events:none; backdrop-filter:blur(2px);
+}
+#drop-hint.on { display:flex; }
 
 /* Ghost input - fuori viewport ma accessibile */
 #ghost { position:fixed; left:50%; top:-200px; width:200px; height:40px; opacity:0.01; font-size:16px; border:none; background:transparent; color:transparent; caret-color:transparent; outline:none; }
@@ -82,6 +91,7 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
     <button class="btn" onclick="copyFromMac()">📋 Copia Mac</button>
     <button class="btn" onclick="pasteToMac()">📌 Incolla Mac</button>
     <button class="btn" onclick="wakeDisplay()" title="Riaccende lo schermo se è nero o in standby">☀️ Sveglia</button>
+    <span id="stats" title="fps reali e banda in ingresso"></span>
     <span id="status" class="off">● Off</span>
   </div>
   <div id="screen-wrap"><canvas id="c"></canvas></div>
@@ -102,6 +112,7 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
   </div>
 </div>
 
+<div id="drop-hint">📂 Rilascia per inviare al Mac</div>
 <div id="desk-cursor"></div>
 <div id="touch-cursor"></div>
 <input id="ghost" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -274,6 +285,7 @@ function openWS() {
 let frameSeq = 0, drawnSeq = 0;
 async function drawFrame(blob) {
   const seq = ++frameSeq;
+  statFrames++; statBytes += blob.size;
   const bmp = await createImageBitmap(blob);
   if (seq < drawnSeq) { bmp.close(); return; }
   drawnSeq = seq;
@@ -281,6 +293,35 @@ async function drawFrame(blob) {
   ctx.drawImage(bmp, 0, 0);
   bmp.close();
 }
+
+// ── STATISTICHE (fps reali e banda) ─────────────────────────────────────
+let statFrames = 0, statBytes = 0;
+setInterval(()=>{
+  const el = document.getElementById('stats');
+  el.textContent = ws?.readyState===1 ? `${statFrames} fps · ${Math.round(statBytes/1024)} KB/s` : '';
+  statFrames = 0; statBytes = 0;
+}, 1000);
+
+// ── DROP FILE → ~/Downloads del Mac ─────────────────────────────────────
+const dropHint = document.getElementById('drop-hint');
+let dragDepth = 0;
+document.addEventListener('dragenter', e=>{ e.preventDefault(); if(++dragDepth===1 && token) dropHint.classList.add('on'); });
+document.addEventListener('dragleave', ()=>{ if(--dragDepth<=0){ dragDepth=0; dropHint.classList.remove('on'); } });
+document.addEventListener('dragover',  e=>e.preventDefault());
+document.addEventListener('drop', async e=>{
+  e.preventDefault();
+  dragDepth = 0; dropHint.classList.remove('on');
+  if (!token) return;
+  for (const file of e.dataTransfer.files) {
+    status.textContent = `↑ ${file.name}`;
+    try {
+      const r = await fetch('/upload', { method:'POST', headers:{'X-Token':token, 'X-Filename':encodeURIComponent(file.name)}, body:file });
+      const j = await r.json();
+      status.textContent = r.ok ? `✓ ${j.saved} in Download` : '✗ invio fallito';
+    } catch { status.textContent = '✗ invio fallito'; }
+    setTimeout(()=>{ status.textContent='● On'; }, 3000);
+  }
+});
 
 function send(o) { if(ws?.readyState===1) ws.send(JSON.stringify(o)); }
 

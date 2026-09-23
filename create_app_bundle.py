@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import shutil
+import sys
 import subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -104,6 +105,10 @@ shutil.copytree(ROOT / "static", RESOURCES / "static")
 subprocess.run(["xattr", "-cr", str(APP_DIR)], check=True)
 subprocess.run(["codesign", "--force", "--deep", "-s", "-", str(APP_DIR)], check=True)
 print(f"✅ Bundle creato con successo: {APP_DIR}")
+
+# Su CI si costruisce soltanto: niente installazione
+if "--no-install" in sys.argv:
+    raise SystemExit(0)
 
 # Installa in /Applications
 app_dest = Path("/Applications") / APP_NAME

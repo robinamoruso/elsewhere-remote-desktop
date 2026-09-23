@@ -1,5 +1,6 @@
 import asyncio, hmac, io, json, os, secrets, subprocess, sys, time
 from pathlib import Path
+from urllib.parse import unquote
 
 import mss
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Depends, Request
@@ -42,10 +43,12 @@ SECURITY_HEADERS = {
 # Il body viene bufferizzato in memoria prima di qualsiasi controllo: senza
 # tetto, una richiesta enorme fa fuori il processo (e con lui il Mac).
 MAX_BODY = 1_000_000
+MAX_UPLOAD = 2_000_000_000   # i file caricati vanno su disco a pezzi, non in memoria
 
 @app.middleware("http")
 async def limit_body(request, call_next):
-    if int(request.headers.get("content-length") or 0) > MAX_BODY:
+    limit = MAX_UPLOAD if request.url.path == "/upload" else MAX_BODY
+    if int(request.headers.get("content-length") or 0) > limit:
         return JSONResponse({"detail": "too large"}, 413)
     return await call_next(request)
 
@@ -103,6 +106,27 @@ async def set_clipboard(data: dict):
     return {}
 
 _last_wake = 0.0
+
+@app.post("/upload", dependencies=[Depends(require_token)])
+async def upload(request: Request, x_filename: str = Header("")):
+    # Percent-encoded dal client (gli header non reggono i caratteri non ASCII).
+    # Solo il nome: "../../.ssh/authorized_keys" diventa "authorized_keys"
+    name = Path(unquote(x_filename)).name or "file"
+    dest = Path.home() / "Downloads" / name
+    n = 1
+    while dest.exists():   # mai sovrascrivere roba dell'utente
+        dest = dest.with_name(f"{Path(name).stem} ({n}){Path(name).suffix}")
+        n += 1
+    size = 0
+    with dest.open("wb") as f:          # a pezzi: un file grosso non deve stare in RAM
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_UPLOAD:
+                f.close(); dest.unlink(missing_ok=True)
+                raise HTTPException(413, "too large")
+            f.write(chunk)
+    log(f"file ricevuto: {dest.name} ({size/1024:.0f} KB)")
+    return {"saved": dest.name}
 
 def wake_display():
     # Ogni chiamata lancia un processo: senza freno un flood di "wake"
