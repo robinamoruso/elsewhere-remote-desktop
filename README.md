@@ -54,7 +54,7 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, double-tap to double-click, long-press for right-click, two fingers to scroll, and a bar with ⌘C, ⌘V, ⌘Z, ⌘Space, the arrow keys and the keyboard toggle.
 - **Any keyboard layout.** Keys are sent by *physical position*, so Italian, German and French keyboards just work. *Win KB* mode maps Ctrl to ⌘ when you connect from a Windows PC.
 - **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
-- **It tunes itself.** When the connection can't keep up, quality and scale step down on their own and climb back when it recovers. Touch a slider and it gets out of your way.
+- **It tunes itself.** When the connection genuinely can't keep up — frames are flowing and still falling behind — quality and scale step down, and climb back when it recovers. A still screen sends nothing, and that is never mistaken for a slow link. Touch a slider and it gets out of your way.
 - **Clipboard both ways**, multiple monitors, a live fps/bandwidth readout, and a zoom that follows the cursor.
 - **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.
 - **No limits.** No session timeouts, no "commercial use detected" warning, no device cap.

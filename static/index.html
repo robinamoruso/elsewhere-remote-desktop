@@ -349,13 +349,20 @@ const STEPS = [
 
 // Decide il gradino successivo. Pura di proposito: la logica ha abbastanza
 // casi limite da meritare un test (vedi test_auto_quality.js).
-// A schermo fermo non arrivano frame: non è una rete lenta, non si tocca nulla.
-function autoNext(fps, target, step, slow, good, maxStep) {
-  if (fps <= 0) return { step, slow, good };
+//
+// Pochi fotogrammi non significano rete lenta: a schermo fermo il server non
+// manda nulla, ed è il caso più comune. Si degrada solo quando arriva traffico
+// vero (lo schermo sta cambiando) e comunque non si tiene il passo.
+const BUSY_BYTES = 60000;   // sotto i ~60 KB/s lo schermo è fermo, non è la rete
+const SLOW_SECS  = 4;       // secondi lenti di fila prima di scendere
+const GOOD_SECS  = 6;       // secondi buoni di fila prima di risalire
+
+function autoNext(fps, bytes, target, step, slow, good, maxStep) {
+  if (fps <= 0 || bytes < BUSY_BYTES) return { step, slow: 0, good };  // niente prove: non giudicare
   if (fps < target * 0.6)       { slow++; good = 0; }
   else if (fps >= target * 0.9) { good++; slow = 0; }
-  if (slow >= 2 && step < maxStep) return { step: step + 1, slow: 0, good: 0 };
-  if (good >= 8 && step > 0)       return { step: step - 1, slow: 0, good: 0 };  // risale piano
+  if (slow >= SLOW_SECS && step < maxStep) return { step: step + 1, slow: 0, good: 0 };
+  if (good >= GOOD_SECS && step > 0)       return { step: step - 1, slow: 0, good: 0 };  // risale piano
   return { step, slow, good };
 }
 
@@ -378,7 +385,7 @@ setInterval(()=>{
 
   if (auto && ws?.readyState===1) {
     const target = +document.getElementById('r-fps').value;
-    const next = autoNext(statFrames, target, autoStep, slowSecs, goodSecs, STEPS.length - 1);
+    const next = autoNext(statFrames, statBytes, target, autoStep, slowSecs, goodSecs, STEPS.length - 1);
     slowSecs = next.slow; goodSecs = next.good;
     if (next.step !== autoStep) applyStep(next.step);
   }

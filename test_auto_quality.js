@@ -3,31 +3,41 @@ const assert = require('assert');
 const fs = require('fs');
 
 const html = fs.readFileSync(`${__dirname}/static/index.html`, 'utf8');
-const src = html.match(/function autoNext[\s\S]*?\n}/)[0];
+const src = html.match(/const BUSY_BYTES[\s\S]*?\nfunction autoNext[\s\S]*?\n}/)[0];
 const autoNext = new Function(`${src}; return autoNext;`)();
 
-const MAX = 4;
-// schermo fermo: nessun frame non significa rete lenta
-assert.deepStrictEqual(autoNext(0, 20, 0, 1, 0, MAX), { step: 0, slow: 1, good: 0 });
+const MAX = 4, TARGET = 20;
+const BIG = 300000;   // traffico vero: lo schermo sta cambiando
+const IDLE = 5000;    // quasi niente: schermo fermo
 
-// due secondi lenti di fila → scende di un gradino
-let s = autoNext(5, 20, 0, 0, 0, MAX);
-assert.strictEqual(s.slow, 1, 'primo secondo lento: solo conta');
-s = autoNext(5, 20, 0, s.slow, s.good, MAX);
-assert.strictEqual(s.step, 1, 'secondo secondo lento: degrada');
+// schermo fermo → non si degrada mai, per quanti secondi passino
+let s = { step: 0, slow: 0, good: 0 };
+for (let i = 0; i < 20; i++) s = autoNext(2, IDLE, TARGET, s.step, s.slow, s.good, MAX);
+assert.strictEqual(s.step, 0, 'schermo fermo non deve degradare');
 
-// un secondo buono azzera i lenti: un singolo calo non degrada
-s = autoNext(5, 20, 0, 0, 0, MAX);
-s = autoNext(20, 20, 0, s.slow, s.good, MAX);
-assert.strictEqual(s.slow, 0, 'un secondo buono azzera il contatore');
+// nessun frame → gradino invariato e contatore dei lenti azzerato
+assert.deepStrictEqual(autoNext(0, 0, TARGET, 1, 2, 0, MAX), { step: 1, slow: 0, good: 0 });
 
-// otto secondi buoni → risale di un gradino
-let good = 0, step = 2;
-for (let i = 0; i < 8; i++) ({ step, good } = autoNext(20, 20, step, 0, good, MAX));
-assert.strictEqual(step, 1, 'dopo 8s buoni risale');
+// traffico vero ma pochi fps → degrada solo dopo 4 secondi, non subito
+s = { step: 0, slow: 0, good: 0 };
+for (let i = 0; i < 3; i++) s = autoNext(5, BIG, TARGET, s.step, s.slow, s.good, MAX);
+assert.strictEqual(s.step, 0, 'tre secondi lenti non bastano');
+s = autoNext(5, BIG, TARGET, s.step, s.slow, s.good, MAX);
+assert.strictEqual(s.step, 1, 'al quarto secondo lento degrada');
 
-// non si scende sotto l'ultimo gradino né si sale sopra il primo
-assert.strictEqual(autoNext(1, 20, MAX, 1, 0, MAX).step, MAX, 'niente oltre il gradino minimo');
-assert.strictEqual(autoNext(20, 20, 0, 0, 7, MAX).step, 0, 'niente sopra la qualità piena');
+// un secondo buono in mezzo azzera il conteggio
+s = { step: 0, slow: 0, good: 0 };
+for (let i = 0; i < 3; i++) s = autoNext(5, BIG, TARGET, s.step, s.slow, s.good, MAX);
+s = autoNext(20, BIG, TARGET, s.step, s.slow, s.good, MAX);
+assert.strictEqual(s.slow, 0, 'un secondo buono azzera i lenti');
 
-console.log('✓ qualità adattiva: 6 casi ok');
+// sei secondi buoni → risale di un gradino
+s = { step: 2, slow: 0, good: 0 };
+for (let i = 0; i < 6; i++) s = autoNext(20, BIG, TARGET, s.step, s.slow, s.good, MAX);
+assert.strictEqual(s.step, 1, 'dopo 6s buoni risale');
+
+// limiti
+assert.strictEqual(autoNext(1, BIG, TARGET, MAX, 3, 0, MAX).step, MAX, 'non si scende oltre il minimo');
+assert.strictEqual(autoNext(20, BIG, TARGET, 0, 0, 5, MAX).step, 0, 'non si sale oltre la qualità piena');
+
+console.log('\u2713 qualità adattiva: 7 casi ok');
