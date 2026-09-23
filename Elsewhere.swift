@@ -49,6 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var isRunning: Bool = false
     var isRegenerating: Bool = false
     var isServerReady: Bool = false
+    var isVerifying: Bool = false
     var telegramToken: String = ""
     var telegramChatId: String = ""
     var serverFails: Int = 0
@@ -643,6 +644,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    // Riprova ogni 3s finché il link pubblico non risponde (max ~60s)
+    func waitUntilReachable(_ url: String, attemptsLeft: Int, completion: @escaping (Bool) -> Void) {
+        checkPublicReachable(url) { [weak self] ok in
+            if ok || attemptsLeft <= 1 { completion(ok); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                self?.waitUntilReachable(url, attemptsLeft: attemptsLeft - 1, completion: completion)
+            }
+        }
+    }
+
     func checkTunnelLog() {
         guard isRunning && (publicUrl.isEmpty || isRegenerating || !isServerReady) else { return }
         let tLog = "\(projectDir)/tunnel.log"
@@ -675,14 +686,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     checkServerReady { [weak self] ready in
                         guard let self = self, ready else { return }
                         DispatchQueue.main.async {
-                            guard !self.isServerReady else { return }
-                            self.isServerReady = true
-                            self.appLog("server pronto, link \(url)")
-                            self.isRegenerating = false
-                            self.copyToClipboard(url)
-                            self.sendNotification(title: "Elsewhere is up 🚀", subtitle: "New link ready and copied", message: url)
-                            self.sendTelegram(targetUrl: url, isManual: false)
-                            self.updateUI()
+                            guard !self.isServerReady, !self.isVerifying else { return }
+                            // Un tunnel appena creato non risponde subito da fuori: annunciarlo
+                            // prima significa consegnare un link che dà "connessione rifiutata"
+                            self.isVerifying = true
+                            self.appLog("server pronto, verifico che \(url) risponda da internet")
+                            self.statusMenuItem.title = "Elsewhere: 🟡 Checking the link…"
+                            self.waitUntilReachable(url, attemptsLeft: 20) { ok in
+                                DispatchQueue.main.async {
+                                    self.isVerifying = false
+                                    guard !self.isServerReady, self.publicUrl == url else { return }
+                                    self.isServerReady = true
+                                    self.isRegenerating = false
+                                    self.copyToClipboard(url)
+                                    self.appLog(ok ? "link verificato e copiato: \(url)" : "link non ancora raggiungibile, lo consegno comunque: \(url)")
+                                    self.sendNotification(title: "Elsewhere is up 🚀",
+                                                          subtitle: ok ? "Link ready and copied" : "Link created, still propagating",
+                                                          message: url)
+                                    self.sendTelegram(targetUrl: url, isManual: false)
+                                    self.updateUI()
+                                }
+                            }
                         }
                     }
                 }
