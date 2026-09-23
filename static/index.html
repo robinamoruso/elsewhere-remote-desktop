@@ -59,6 +59,21 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
 #desk-cursor { position:fixed; width:14px; height:14px; border:2px solid #0f0; border-radius:50%; pointer-events:none; transform:translate(-50%,-50%); z-index:99; opacity:0; }
 #touch-cursor { position:fixed; width:18px; height:18px; border:2px solid #00ff88; border-radius:50%; background:rgba(0,255,136,0.2); box-shadow:0 0 8px #00ff88; pointer-events:none; transform:translate(-50%,-50%); z-index:99; display:none; }
 
+/* OFFLINE */
+#offline {
+  display:none; position:fixed; inset:38px 0 0 0; z-index:150;
+  align-items:center; justify-content:center;
+  background:rgba(13,13,13,0.72); backdrop-filter:blur(3px);
+}
+#offline.on { display:flex; }
+#offline .box { text-align:center; padding:22px 28px; border:1px solid #444; border-radius:10px; background:#181818; max-width:82%; }
+#off-title { font-size:17px; color:#e74c3c; margin-bottom:8px; }
+#off-msg { font-size:13px; color:#bbb; line-height:1.5; }
+#off-btn { display:none; margin-top:14px; padding:8px 18px; background:#0078d4; color:#fff; border:none; border-radius:7px; font-size:13px; cursor:pointer; }
+#off-btn.on { display:inline-block; }
+/* il fotogramma rimasto non deve sembrare ancora vivo */
+canvas.stale { filter:grayscale(1) brightness(0.45); }
+
 /* DROP FILE */
 #drop-hint {
   display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center;
@@ -113,6 +128,13 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
   </div>
 </div>
 
+<div id="offline">
+  <div class="box">
+    <div id="off-title">Connection lost</div>
+    <div id="off-msg">reconnecting…</div>
+    <button id="off-btn" onclick="retryNow()">Retry now</button>
+  </div>
+</div>
 <div id="drop-hint">📂 Drop to send to the Mac</div>
 <div id="desk-cursor"></div>
 <div id="touch-cursor"></div>
@@ -265,19 +287,24 @@ function openWS() {
   ws.onopen  = () => {
     status.textContent='● On';
     status.className='on';
+    tries = 0;
+    setOffline(false);
     sendConfig();
     wakeDisplay();
   };
   ws.onclose = e => {
     status.textContent='● Off'; status.className='off';
     if (e.code === 4001) {  // sessione scaduta: serve la password, non un retry
+      setOffline(false);
       document.getElementById('app').style.display   = 'none';
       document.getElementById('login').style.display = 'flex';
       document.getElementById('err').textContent = 'Session expired, sign in again';
       token = null;
       return;
     }
-    setTimeout(openWS,2500);
+    tries++;
+    setOffline(true);
+    retryTimer = setTimeout(openWS, 2500);
   };
   ws.onerror = () => ws.close();
   ws.onmessage = e => {
@@ -378,6 +405,33 @@ document.addEventListener('drop', async e=>{
     setTimeout(()=>{ status.textContent='● On'; }, 3000);
   }
 });
+
+// ── STATO OFFLINE ───────────────────────────────────────────────────────
+// Senza questo l'ultimo fotogramma resta lì fermo e sembra tutto a posto
+let tries = 0, retryTimer = null;
+
+function setOffline(on) {
+  document.getElementById('offline').classList.toggle('on', on);
+  canvas.classList.toggle('stale', on);
+  if (!on) return;
+  const msg = document.getElementById('off-msg');
+  const btn = document.getElementById('off-btn');
+  if (tries < 5) {
+    msg.textContent = `reconnecting… (attempt ${tries})`;
+    btn.classList.remove('on');
+  } else {
+    // Dopo ~12s di tentativi non è un singolo pacchetto perso
+    msg.innerHTML = 'The Mac is not answering.<br>It may be asleep, or the link may have changed:<br>check the new one on the Mac or on Telegram.';
+    btn.classList.add('on');
+  }
+}
+
+function retryNow() {
+  clearTimeout(retryTimer);
+  tries = 0;
+  setOffline(true);
+  openWS();
+}
 
 function send(o) { if(ws?.readyState===1) ws.send(JSON.stringify(o)); }
 
