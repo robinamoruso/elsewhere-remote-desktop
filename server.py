@@ -1,4 +1,4 @@
-import asyncio, base64, hmac, io, json, os, secrets, subprocess, sys, time
+import asyncio, hmac, io, json, os, secrets, subprocess, sys, time
 from pathlib import Path
 
 import mss
@@ -231,6 +231,7 @@ async def ws_endpoint(websocket: WebSocket, token: str):
             nonlocal quality, scale, fps, mon
             prev_bytes = None
             prev_mon = None
+            prev_size = None
             while True:
                 # La sessione scade anche a WebSocket aperto: chiudi, altrimenti
                 # i frame si fermano ma mouse e tastiera resterebbero attivi
@@ -249,8 +250,12 @@ async def ws_endpoint(websocket: WebSocket, token: str):
                     img.save(buf, "JPEG", quality=quality, optimize=False)
                     frame_bytes = buf.getvalue()
                     if frame_bytes != prev_bytes or cur_mon is not prev_mon:
-                        b64 = base64.b64encode(frame_bytes).decode()
-                        await websocket.send_text(json.dumps({"type":"frame","data":b64,"sw":sw,"sh":sh}))
+                        # Il JPEG va giù binario: in base64 dentro un JSON pesava un terzo in più.
+                        # Le dimensioni cambiano solo cambiando monitor o scala, quindi a parte.
+                        if (sw, sh) != prev_size:
+                            await websocket.send_text(json.dumps({"type": "size", "sw": sw, "sh": sh}))
+                            prev_size = (sw, sh)
+                        await websocket.send_bytes(frame_bytes)
                         prev_bytes = frame_bytes
                         prev_mon = cur_mon
                 except Exception:

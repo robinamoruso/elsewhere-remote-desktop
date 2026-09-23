@@ -72,7 +72,7 @@ Each choice below trades something away on purpose.
 `cloudflared` uses QUIC by default, and UDP is the first thing restrictive networks block. Elsewhere forces `--protocol http2`: it's a bit less fast in theory, but it connects in far more places.
 
 **JPEG frames over a WebSocket instead of WebRTC or a video codec.**
-WebRTC relies on UDP, STUN and TURN, and that's exactly what firewalls block. A WebSocket goes wherever HTTPS goes. The server skips frames that haven't changed, so an idle screen costs almost nothing. The tradeoff: more bandwidth than H.264 when the screen is busy. The FPS, quality and scale sliders let you tune it on the fly.
+WebRTC relies on UDP, STUN and TURN, and that's exactly what firewalls block. A WebSocket goes wherever HTTPS goes. Frames go down as raw binary and identical ones are skipped, so an idle screen costs almost nothing. The tradeoff: more bandwidth than H.264 when the screen is busy. The FPS, quality and scale sliders let you tune it on the fly.
 
 **Native input with Quartz `CGEvent` instead of `pyautogui`.**
 Events go straight into the macOS event system. That means no automation-library overhead, no cursor jumping, correct multi-monitor coordinates, and real modifier keys.
@@ -197,7 +197,8 @@ To be clear about the networks: a proxy that inspects TLS or filters by category
 | Direction | Message |
 |---|---|
 | Mac → you | `{"type":"monitors","list":[{"index","width","height"}],"current":0}` |
-| Mac → you | `{"type":"frame","data":"<base64 JPEG>","sw":1920,"sh":1080}` |
+| Mac → you | `{"type":"size","sw":1920,"sh":1080}` — only when the resolution changes |
+| Mac → you | the JPEG frame itself, as a **binary** WebSocket message |
 | you → Mac | `{"type":"config","fps":20,"quality":55,"scale":0.8,"monitor":0}` |
 | you → Mac | `{"type":"mouse_move","x":0.5,"y":0.5}` (coordinates from 0 to 1) |
 | you → Mac | `{"type":"mouse_down" / "mouse_up","x":…,"y":…,"button":"left"\|"right"\|"middle"}` |

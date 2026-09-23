@@ -237,6 +237,7 @@ function wakeDisplay() {
 function openWS() {
   const proto = location.protocol==='https:' ? 'wss':'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws/${token}`);
+  ws.binaryType = 'blob';
   ws.onopen  = () => {
     status.textContent='● On';
     status.className='on';
@@ -256,6 +257,7 @@ function openWS() {
   };
   ws.onerror = () => ws.close();
   ws.onmessage = e => {
+    if (typeof e.data !== 'string') { drawFrame(e.data); return; }  // JPEG binario
     const msg = JSON.parse(e.data);
     if (msg.type==='monitors') {
       const sel = document.getElementById('mon-select');
@@ -263,18 +265,21 @@ function openWS() {
       sel.value = msg.current;
       return;
     }
-    if (msg.type==='frame') {
-      const prevSw = sw, prevSh = sh;
-      sw=msg.sw; sh=msg.sh;
-      const img=new Image();
-      img.onload=()=>{
-        canvas.width=img.width; canvas.height=img.height;
-        ctx.drawImage(img,0,0);
-        if(sw!==prevSw || sh!==prevSh) fitCanvas();
-      };
-      img.src='data:image/jpeg;base64,'+msg.data;
-    }
+    if (msg.type==='size') { sw=msg.sw; sh=msg.sh; fitCanvas(); }
   };
+}
+
+// La decodifica è asincrona: un frame decodificato in ritardo non deve
+// sovrascriverne uno più recente già disegnato.
+let frameSeq = 0, drawnSeq = 0;
+async function drawFrame(blob) {
+  const seq = ++frameSeq;
+  const bmp = await createImageBitmap(blob);
+  if (seq < drawnSeq) { bmp.close(); return; }
+  drawnSeq = seq;
+  canvas.width = bmp.width; canvas.height = bmp.height;
+  ctx.drawImage(bmp, 0, 0);
+  bmp.close();
 }
 
 function send(o) { if(ws?.readyState===1) ws.send(JSON.stringify(o)); }

@@ -36,6 +36,7 @@ Non ci sono test automatici. Per verificare, smoke test con curl su `/health`, `
 - La firma è ad hoc, quindi un rebuild può invalidare i permessi TCC (Registrazione schermo, Accessibilità). Se input o cattura smettono di funzionare, rimuovi e riaggiungi l'app nelle impostazioni.
 - Non uccidere processi generici: `pkill` solo su `tunnelProcessPattern` e `lsof -sTCP:LISTEN` sulla porta, per non chiudere altri tunnel o server dell'utente.
 - Tastiera: il client invia la **posizione fisica** (`e.code`) e `KEYMAP` in `server.py` la traduce in keycode macOS (layout US). Nuovi tasti vanno aggiunti in entrambi.
+- I frame sono messaggi WebSocket **binari** (JPEG puro); `size` arriva come JSON solo quando cambia la risoluzione. Il client decodifica con `createImageBitmap`, con un contatore che scarta i frame decodificati in ritardo.
 - Coordinate mouse normalizzate 0–1 rispetto al monitor selezionato. Le dimensioni vengono corrette con `CGDisplayBounds` perché mss restituisce pixel Retina.
 - Ogni endpoint nuovo che tocca il Mac deve richiedere il token (`Depends(require_token)`), perché il server è esposto su internet.
 - Difese da non smontare per sbaglio: bind su loopback salvo `ELSEWHERE_BIND=0.0.0.0`, lock che serializza i login falliti, tetto di 1 MB sul body, token rivalidato a ogni frame (la sessione scaduta chiude con codice 4001, gestito dal client), clamp su fps/scale/quality, freno di 3s su `wake_display`.
