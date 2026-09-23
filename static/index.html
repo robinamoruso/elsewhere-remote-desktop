@@ -227,11 +227,23 @@ let kbOpen = false;
 let ghostVal = '     ';            // padding fisso per rilevare backspace
 
 // ── AUTH ─────────────────────────────────────────────────────────────────
+// La password non esce dal dispositivo: si rimanda HMAC(password, sfida).
+// crypto.subtle esiste solo in contesto sicuro (HTTPS o localhost); sul link
+// LAN in chiaro non c'è, e lì si ripiega sulla password.
+async function authBody(pwd) {
+  if (!window.crypto?.subtle) return { password: pwd };
+  const { challenge } = await (await fetch('/challenge')).json();
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(pwd), { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(challenge));
+  const proof = [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  return { challenge, proof };
+}
 async function connect() {
   const pwd = document.getElementById('pwd').value.trim();
   if (!pwd) return;
   try {
-    const r = await fetch('/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pwd}) });
+    const r = await fetch('/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(await authBody(pwd)) });
     if (!r.ok) { document.getElementById('err').textContent='Wrong password'; return; }
     token = (await r.json()).token;
     document.getElementById('login').style.display = 'none';

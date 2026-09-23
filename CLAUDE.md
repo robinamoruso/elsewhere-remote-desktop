@@ -40,6 +40,7 @@ Unico test: `node test_auto_quality.js` (logica della qualità adattiva, estratt
 - I frame sono messaggi WebSocket **binari** (JPEG puro); `size` arriva come JSON solo quando cambia la risoluzione. Il client decodifica con `createImageBitmap`, con un contatore che scarta i frame decodificati in ritardo.
 - Coordinate mouse normalizzate 0–1 rispetto al monitor selezionato. Le dimensioni vengono corrette con `CGDisplayBounds` perché mss restituisce pixel Retina.
 - Ogni endpoint nuovo che tocca il Mac deve richiedere il token (`Depends(require_token)`), perché il server è esposto su internet.
+- Login a sfida: `GET /challenge` poi `POST /auth` con `HMAC(password, sfida)`. Dal tunnel (richieste da 127.0.0.1) la prova è obbligatoria; la password in chiaro si accetta solo da indirizzi LAN, dove il browser non ha `crypto.subtle`.
 - Difese da non smontare per sbaglio: bind su loopback salvo `ELSEWHERE_BIND=0.0.0.0`, lock che serializza i login falliti, tetto di 1 MB sul body, token rivalidato a ogni frame (la sessione scaduta chiude con codice 4001, gestito dal client), clamp su fps/scale/quality, freno di 3s su `wake_display`.
 - Niente segreti in notifiche, messaggi Telegram o argomenti di comandi (`ps` li mostra a tutti).
 - Non committare `.env` né riferimenti a host, domini o MAC reali: la configurazione personale va solo in `~/.elsewhere/.env`.

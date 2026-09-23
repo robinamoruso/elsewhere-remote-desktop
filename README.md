@@ -160,7 +160,8 @@ Then add `ELSEWHERE_TUNNEL_NAME=elsewhere` and `ELSEWHERE_TUNNEL_HOST=desk.examp
 
 Concretely:
 
-- **Random password** generated at install. The server refuses to start without one, or with `changeme`.
+- **The password never travels.** Logging in is a challenge and an `HMAC-SHA256` proof, so it isn't sent over the wire and Cloudflare never sees it, not even inside the TLS session. Challenges are single-use and expire in 30 seconds, so a captured proof can't be replayed.
+- **Random password** generated at install, at least 8 characters. The server refuses to start without one, or with `changeme`.
 - **Random session tokens** (32 bytes), valid for one hour. Every endpoint that touches the Mac requires one, and when a session expires the live connection is closed, not just left idle.
 - **Loopback only by default.** The server answers the tunnel and nothing else, so no device on your Wi-Fi can even reach the login page unless you set `ELSEWHERE_BIND=0.0.0.0`.
 - **Request bodies are capped** at 1 MB, so an unauthenticated request can't exhaust memory.
@@ -178,8 +179,8 @@ For a permanent domain, put [Cloudflare Access](https://developers.cloudflare.co
 
 Know the tradeoffs:
 
-- **Cloudflare terminates TLS**, so the tunnel provider can technically see the traffic. Every clientless browser solution has this property, including Cloudflare's own and anything built on Guacamole; the alternative is a peer-to-peer design that stops working on restrictive networks. If that's unacceptable, use a fixed domain with Cloudflare Access, or reach the Mac over a VPN you control.
-- **`ELSEWHERE_BIND=0.0.0.0` is plain HTTP.** It's off by default, and you rarely need it: the HTTPS tunnel works just as well while you're at home. Turn it on only if you want the Mac reachable with the internet down, and only on a network you trust.
+- **Cloudflare terminates TLS**, so the tunnel provider can technically see your screen and input, though no longer your password. Every clientless browser solution has this property, including Cloudflare's own and anything built on Guacamole; the alternative is a peer-to-peer design that stops working on restrictive networks. If that's unacceptable, use a fixed domain with Cloudflare Access, or reach the Mac over a VPN you control.
+- **`ELSEWHERE_BIND=0.0.0.0` is plain HTTP**, and `crypto.subtle` doesn't exist outside a secure context, so on that link the browser falls back to sending the password. It's off by default, and you rarely need it: the HTTPS tunnel works just as well while you're at home. Turn it on only if you want the Mac reachable with the internet down, and only on a network you trust.
 - **The app is signed ad hoc.** Anything already running as your user could replace the bundled `server.py` and inherit Elsewhere's Screen Recording and Accessibility permissions. Closing that needs a Developer ID signature, which needs a paid Apple account.
 - **Whoever gets in has your Mac**, with Screen Recording and Accessibility. There are no read-only or limited sessions.
 
@@ -194,8 +195,9 @@ To be clear about the networks: a proxy that inspects TLS or filters by category
 
 ## Protocol
 
-1. `POST /auth` with `{"password": "..."}` returns `{"token": "..."}`, valid for one hour.
-2. Open a WebSocket to `/ws/<token>`.
+1. `GET /challenge` returns a one-time `{"challenge": "<hex>"}`, good for 30 seconds.
+2. `POST /auth` with `{"challenge": "...", "proof": "..."}`, where the proof is `HMAC-SHA256(password, challenge)` in hex, returns `{"token": "..."}`, valid for one hour.
+3. Open a WebSocket to `/ws/<token>`.
 
 | Direction | Message |
 |---|---|
@@ -216,10 +218,15 @@ To be clear about the networks: a proxy that inspects TLS or filters by category
 
 ```python
 # open Spotlight on the Mac, from any script
-import asyncio, json, requests, websockets
-tok = requests.post("https://<your-link>/auth", json={"password": "..."}).json()["token"]
+import asyncio, hashlib, hmac, json, requests, websockets
+
+HOST, PASSWORD = "https://<your-link>", "..."
+challenge = requests.get(f"{HOST}/challenge").json()["challenge"]
+proof = hmac.new(PASSWORD.encode(), challenge.encode(), hashlib.sha256).hexdigest()
+tok = requests.post(f"{HOST}/auth", json={"challenge": challenge, "proof": proof}).json()["token"]
+
 async def main():
-    async with websockets.connect(f"wss://<your-link>/ws/{tok}") as ws:
+    async with websockets.connect(f"{HOST.replace('https', 'wss')}/ws/{tok}") as ws:
         await ws.send(json.dumps({"type": "key_combo", "key": "space", "mods": ["command"]}))
 asyncio.run(main())
 ```

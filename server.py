@@ -1,4 +1,4 @@
-import asyncio, hmac, io, json, os, secrets, subprocess, sys, time
+import asyncio, hashlib, hmac, io, json, os, secrets, subprocess, sys, time
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -27,9 +27,11 @@ PASSWORD  = os.environ.get("ELSEWHERE_PASSWORD", "")
 if PASSWORD in ("", "changeme") or len(PASSWORD) < 8:
     sys.exit("ELSEWHERE_PASSWORD missing, too short (min 8) or still 'changeme': edit ~/.elsewhere/.env")
 TOKEN_TTL = 3600
+CHALLENGE_TTL = 30
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 _sessions: dict[str, float] = {}
+_challenges: dict[str, float] = {}
 _auth_lock = asyncio.Lock()
 
 # L'URL del tunnel è di fatto un segreto: no-referrer evita che finisca nei log
@@ -73,9 +75,34 @@ async def index():
 @app.head("/health")
 async def health(): return {"status": "ok"}
 
+# Login a sfida: la password non attraversa la rete, quindi non passa da
+# Cloudflare nemmeno dentro il TLS. Il browser rimanda HMAC(password, sfida).
+@app.get("/challenge")
+async def challenge():
+    now = time.time()
+    for c in [c for c, exp in _challenges.items() if exp < now]: del _challenges[c]
+    if len(_challenges) > 100: _challenges.clear()   # l'endpoint è aperto: niente crescita illimitata
+    c = secrets.token_hex(32)
+    _challenges[c] = now + CHALLENGE_TTL
+    return {"challenge": c}
+
+def check_proof(data: dict) -> bool:
+    c = str(data.get("challenge", ""))
+    if _challenges.pop(c, 0) < time.time(): return False   # scaduta, sconosciuta o già usata
+    expected = hmac.new(PASSWORD.encode(), c.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, str(data.get("proof", "")))
+
 @app.post("/auth")
 async def auth(data: dict, request: Request):
-    if not hmac.compare_digest(str(data.get("password", "")).encode(), PASSWORD.encode()):
+    host = request.client.host if request.client else ""
+    # Dal tunnel le richieste arrivano da 127.0.0.1 e la prova è obbligatoria.
+    # In LAN il browser è in HTTP, dove crypto.subtle non esiste: lì si accetta
+    # la password, che su quel collegamento viaggia comunque in chiaro.
+    if "proof" in data or host in ("127.0.0.1", "::1"):
+        ok = check_proof(data)
+    else:
+        ok = hmac.compare_digest(str(data.get("password", "")).encode(), PASSWORD.encode())
+    if not ok:
         # Il lock serializza i tentativi falliti: anche con mille richieste in
         # parallelo si resta a un tentativo al secondo.
         # ponytail: limite globale, non per IP (dietro il tunnel l'IP è sempre 127.0.0.1)
