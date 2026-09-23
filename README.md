@@ -48,7 +48,7 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 
 - **A link that just works.** A free `trycloudflare.com` URL out of the box, or your own domain (`desk.yourname.com`).
 - **It stays up on its own.** A watchdog checks every 30 seconds that the server responds *and* that the public URL answers from the outside, and restarts whichever part broke. It also rebuilds the tunnel after the Mac wakes from sleep.
-- **The link comes to you.** When the URL changes, the new one lands in your Telegram, so you never need to know it in advance.
+- **The link comes to you.** When the URL changes, the new one lands in your Telegram, so you never need to know it in advance. Set it up in the app, no config file to edit.
 - **Links are disposable.** The URL is random. If you think it leaked, press *Rigenera* and the old one stops working within seconds.
 - **No black screen.** Optional anti-sleep keeps the Mac and its display awake, and every connection wakes the screen. With the watchdog and *Avvia al login*, an always-on Mac mini stays reachable across reboots.
 - **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, long-press for right-click, two fingers to scroll, double-tap for the keyboard, plus a bar with ⌘C, ⌘V, ⌘Z, ⌘Space and the arrow keys.
@@ -122,7 +122,9 @@ Quit and reopen the app from the menu bar. Once the 🖥 icon stops showing `…
 
 ## Configuration
 
-Everything is in `~/.elsewhere/.env`. [`.env.example`](.env.example) lists every variable, and environment variables take precedence.
+**You never have to edit a file.** Open **⚙︎ Settings…** from the menu bar: password, Telegram, fixed tunnel and LAN access are all there, and saving writes `~/.elsewhere/.env` for you and restarts the service. On first launch, with no password set, the app opens Settings instead of failing to start.
+
+If you'd rather edit the file, or you use terminal mode, these are the keys ([`.env.example`](.env.example)). Environment variables take precedence.
 
 | Variable | |
 |---|---|
@@ -250,7 +252,7 @@ Elsewhere.app (Swift) ── starts, watches and heals ──▶ server.py + clo
 | `install.sh` / `start.sh` | ~105 | setup and terminal mode |
 | `test_auto_quality.js` | ~30 | `node test_auto_quality.js` checks the adaptive logic |
 
-Logs are written to `~/.elsewhere/server.log` and `tunnel.log`.
+Logs are written to `~/.elsewhere/`: `server.log` (logins and sessions), `tunnel.log` (cloudflared) and `app.log` (what the menu bar app is doing). If something doesn't work, `app.log` is the place to look first.
 
 ## License
 

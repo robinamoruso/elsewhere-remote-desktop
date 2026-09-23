@@ -20,6 +20,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var antiSleepMenuItem: NSMenuItem!
     var wolMenuItem: NSMenuItem!
     var loginMenuItem: NSMenuItem!
+
+    // Settings
+    var settingsWindow: NSWindow?
+    var fPassword: NSSecureTextField!
+    var fTgToken: NSSecureTextField!
+    var fTgChat: NSTextField!
+    var fTunnelName: NSTextField!
+    var fTunnelHost: NSTextField!
+    var cLan: NSButton!
     
     // Window elements
     var winStatusLabel: NSTextField!
@@ -46,14 +55,58 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var publicFails: Int = 0
     let port: Int = 8765
     // Tunnel fisso opzionale (ELSEWHERE_TUNNEL_NAME + ELSEWHERE_TUNNEL_HOST nel .env), altrimenti quick tunnel trycloudflare
-    lazy var namedTunnelName = envValue("ELSEWHERE_TUNNEL_NAME")
-    lazy var namedTunnelHost = envValue("ELSEWHERE_TUNNEL_HOST")
+    var namedTunnelName = ""
+    var namedTunnelHost = ""
     var useNamedTunnel: Bool { !namedTunnelName.isEmpty && !namedTunnelHost.isEmpty }
-    lazy var password = envValue("ELSEWHERE_PASSWORD")
+    var password = ""
     // Il server ascolta solo su loopback salvo opt-in esplicito: senza, il link
     // Wi-Fi non esiste (ed è comunque HTTP in chiaro, quindi si sceglie a mano)
-    lazy var lanEnabled = envValue("ELSEWHERE_BIND") == "0.0.0.0"
-    var lanLabel: String { lanEnabled ? localUrl : "off (ELSEWHERE_BIND=0.0.0.0 to enable)" }
+    var lanEnabled = false
+    var lanLabel: String { lanEnabled ? localUrl : "off (enable it in Settings)" }
+
+    // Diagnostica su file: lanciata dal Finder, l'app non ha una console
+    func appLog(_ msg: String) {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let line = "\(f.string(from: Date()))  \(msg)\n"
+        let path = "\(projectDir)/app.log"
+        if let h = FileHandle(forWritingAtPath: path) {
+            h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); try? h.close()
+        } else {
+            try? line.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
+    // Tutta la configurazione si modifica dalla finestra Settings: l'utente
+    // non deve mai aprire il .env a mano
+    func loadConfig() {
+        password       = envValue("ELSEWHERE_PASSWORD")
+        telegramToken  = envValue("TELEGRAM_TOKEN")
+        telegramChatId = envValue("TELEGRAM_CHAT_ID")
+        namedTunnelName = envValue("ELSEWHERE_TUNNEL_NAME")
+        namedTunnelHost = envValue("ELSEWHERE_TUNNEL_HOST")
+        lanEnabled     = envValue("ELSEWHERE_BIND") == "0.0.0.0"
+        localUrl       = lanEnabled ? "http://\(getLocalIP()):\(port)" : ""
+    }
+
+    // Riscrive il .env conservando le chiavi che non gestiamo (i commenti no)
+    func saveConfig(_ updates: [String: String]) {
+        let path = "\(projectDir)/.env"
+        var pairs: [String: String] = [:]
+        let existing = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        for line in existing.components(separatedBy: .newlines) {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard !t.hasPrefix("#"), let eq = t.firstIndex(of: "=") else { continue }
+            pairs[String(t[t.startIndex..<eq])] = String(t[t.index(after: eq)...])
+        }
+        for (k, v) in updates {
+            if v.isEmpty { pairs.removeValue(forKey: k) } else { pairs[k] = v }
+        }
+        let body = pairs.keys.sorted().map { "\($0)=\(pairs[$0]!)" }.joined(separator: "\n")
+        let text = "# Elsewhere — written by the app's Settings window\n" + body + "\n"
+        try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+        loadConfig()
+    }
 
     // Variabile d'ambiente, altrimenti letta da ~/.elsewhere/.env
     func envValue(_ key: String) -> String {
@@ -79,6 +132,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let serverScript = Bundle.main.path(forResource: "server", ofType: "py") ?? "\(NSHomeDirectory())/.elsewhere/server.py"
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        loadConfig()
         localUrl = lanEnabled ? "http://\(getLocalIP()):\(port)" : ""
         macAddress = getHardwareMAC()
         
@@ -92,7 +146,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupWakeObservers()
         
         // 4. Start Background Services & Anti-Sleep
-        startServices()
+        if password.count < 8 || password == "changeme" {
+            // Prima installazione: senza password il server rifiuta di partire
+            showSettings()
+            sendNotification(title: "Elsewhere", subtitle: "Choose a password", message: "Set one in Settings to start the service")
+        } else {
+            startServices()
+        }
         
         // Check timer for tunnel URL
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -188,6 +248,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(loginMenuItem)
         menu.addItem(NSMenuItem.separator())
         
+        let settingsItem = NSMenuItem(title: "⚙︎ Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        menu.addItem(settingsItem)
+
         let openWinItem = NSMenuItem(title: "🖥️ Open control panel", action: #selector(showWindow), keyEquivalent: "p")
         menu.addItem(openWinItem)
         
@@ -385,7 +448,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             for pid in out.components(separatedBy: .whitespacesAndNewlines) {
                 // Sulla porta potrebbe esserci un servizio altrui: uccidiamo solo server.py
                 guard processCommand(pid).contains("server.py") else {
-                    print("⚠️ Port \(port) is used by another process (pid \(pid)), leaving it alone")
+                    appLog("⚠️ Port \(port) is used by another process (pid \(pid)), leaving it alone")
                     continue
                 }
                 let k = Process()
@@ -461,6 +524,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func startTunnel() {
+        appLog("avvio tunnel (named: \(useNamedTunnel))")
         isRegenerating = true
         isServerReady = false  // forza nuovo check + notifica Telegram col nuovo link
         publicFails = 0
@@ -546,7 +610,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 // 1. Server Python locale (causa dei 502)
                 self.serverFails = ok ? 0 : self.serverFails + 1
                 if !(self.serverProcess?.isRunning ?? false) || self.serverFails >= 2 {
-                    print("🩺 Watchdog: local server not responding, restarting…")
+                    self.appLog("🩺 Watchdog: local server not responding, restarting…")
                     self.serverProcess?.terminate()
                     self.killServerProcesses()
                     self.startServer()
@@ -556,7 +620,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
                 // 2. Processo cloudflared morto
                 if !(self.tunnelProcess?.isRunning ?? false) {
-                    print("🩺 Watchdog: cloudflared died, restarting the tunnel…")
+                    self.appLog("🩺 Watchdog: cloudflared died, restarting the tunnel…")
                     self.startTunnel()
                     return
                 }
@@ -569,7 +633,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         guard self.isRunning, self.publicUrl == url else { return }
                         self.publicFails = reachable ? 0 : self.publicFails + 1
                         if self.publicFails >= 3 {
-                            print("🩺 Watchdog: public link unreachable, new tunnel…")
+                            self.appLog("🩺 Watchdog: public link unreachable, new tunnel…")
                             self.sendNotification(title: "Elsewhere 🩺", subtitle: "Watchdog", message: "Tunnel unreachable, rebuilding the link")
                             self.startTunnel()
                         }
@@ -613,6 +677,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         DispatchQueue.main.async {
                             guard !self.isServerReady else { return }
                             self.isServerReady = true
+                            self.appLog("server pronto, link \(url)")
                             self.isRegenerating = false
                             self.copyToClipboard(url)
                             self.sendNotification(title: "Elsewhere is up 🚀", subtitle: "New link ready and copied", message: url)
@@ -819,7 +884,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             loadTelegramCredentials()
         }
         guard !telegramToken.isEmpty, !telegramChatId.isEmpty else {
-            print("Telegram credentials not found")
+            appLog("Telegram credentials not found")
             if isManual {
                 sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Telegram credentials not found")
             }
@@ -845,37 +910,151 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ⏰ _\(timestamp)_
         """
         
-        guard let endpoint = URL(string: "https://api.telegram.org/bot\(telegramToken)/sendMessage") else { return }
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let payload: [String: Any] = [
-            "chat_id": telegramChatId,
-            "text": text,
-            "parse_mode": "Markdown",
-            "disable_web_page_preview": false
-        ]
-        
-        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        request.httpBody = body
-        
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            if let error = error {
-                print("Telegram send failed: \(error)")
-                if isManual {
-                    self?.sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Error: \(error.localizedDescription)")
-                }
-            } else {
-                print("Telegram notification sent")
-                if isManual {
-                    self?.sendNotification(title: "Elsewhere 📲", subtitle: "Telegram", message: "Link sent to Telegram")
+        // Via curl e non URLSession: qui il traffico di URLSession passa dalle
+        // estensioni di rete (VPN, relay) e può non uscire affatto. Il token va
+        // nel file di configurazione letto da stdin, così non compare in `ps`.
+        let config = """
+        url = "https://api.telegram.org/bot\(telegramToken)/sendMessage"
+        data-urlencode = "chat_id=\(curlEscape(telegramChatId))"
+        data-urlencode = "text=\(curlEscape(text))"
+        data-urlencode = "parse_mode=Markdown"
+        """
+
+        DispatchQueue.global().async { [weak self] in
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+            p.arguments = ["-s", "-S", "--max-time", "20", "--config", "-"]
+            let stdinPipe = Pipe(), outPipe = Pipe()
+            p.standardInput = stdinPipe
+            p.standardOutput = outPipe
+            p.standardError = outPipe
+            do { try p.run() } catch {
+                self?.appLog("Telegram: curl non eseguibile")
+                return
+            }
+            stdinPipe.fileHandleForWriting.write(config.data(using: .utf8)!)
+            try? stdinPipe.fileHandleForWriting.close()
+            let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            p.waitUntilExit()
+
+            let ok = out.contains("\"ok\":true")
+            // La risposta non contiene il token, ma il messaggio sì: si logga solo l'esito
+            self?.appLog(ok ? "Telegram notification sent" : "Telegram send failed (curl exit \(p.terminationStatus))")
+            if isManual {
+                DispatchQueue.main.async {
+                    self?.sendNotification(title: ok ? "Elsewhere 📲" : "Elsewhere", subtitle: "Telegram",
+                                           message: ok ? "Link sent to Telegram" : "Send failed, see app.log")
                 }
             }
         }
-        task.resume()
+    }
+
+    // Le stringhe del file di configurazione di curl vanno quotate
+    func curlEscape(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+         .replacingOccurrences(of: "\"", with: "\\\"")
+         .replacingOccurrences(of: "\n", with: "\\n")
     }
     
+    // ── Settings ─────────────────────────────────────────────────────────────
+    @objc func showSettings() {
+        if settingsWindow == nil { buildSettingsWindow() }
+        fPassword.stringValue   = password
+        fTgToken.stringValue    = telegramToken
+        fTgChat.stringValue     = telegramChatId
+        fTunnelName.stringValue = namedTunnelName
+        fTunnelHost.stringValue = namedTunnelHost
+        cLan.state = lanEnabled ? .on : .off
+        settingsWindow?.center()
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func label(_ text: String, _ y: CGFloat, bold: Bool = false, small: Bool = false) -> NSTextField {
+        let l = NSTextField(frame: NSRect(x: 24, y: y, width: 452, height: small ? 30 : 18))
+        l.stringValue = text
+        l.font = bold ? NSFont.boldSystemFont(ofSize: 11) : NSFont.systemFont(ofSize: small ? 10 : 12)
+        if small { l.textColor = .secondaryLabelColor; l.maximumNumberOfLines = 2 }
+        l.isEditable = false; l.isBordered = false; l.backgroundColor = .clear
+        return l
+    }
+
+    func buildSettingsWindow() {
+        let w: CGFloat = 500, h: CGFloat = 430
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: w, height: h),
+                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        win.title = "Elsewhere — Settings"
+        guard let c = win.contentView else { return }
+
+        c.addSubview(label("🔑 PASSWORD (at least 8 characters)", h - 46, bold: true))
+        fPassword = NSSecureTextField(frame: NSRect(x: 24, y: h - 76, width: 452, height: 24))
+        c.addSubview(fPassword)
+
+        c.addSubview(label("📲 TELEGRAM (optional: the link is sent here)", h - 112, bold: true))
+        fTgToken = NSSecureTextField(frame: NSRect(x: 24, y: h - 142, width: 452, height: 24))
+        fTgToken.placeholderString = "Bot token from @BotFather"
+        c.addSubview(fTgToken)
+        fTgChat = NSTextField(frame: NSRect(x: 24, y: h - 172, width: 452, height: 24))
+        fTgChat.placeholderString = "Chat ID"
+        c.addSubview(fTgChat)
+
+        c.addSubview(label("🌐 FIXED CLOUDFLARE TUNNEL (optional)", h - 208, bold: true))
+        fTunnelName = NSTextField(frame: NSRect(x: 24, y: h - 238, width: 452, height: 24))
+        fTunnelName.placeholderString = "Tunnel name, e.g. elsewhere"
+        c.addSubview(fTunnelName)
+        fTunnelHost = NSTextField(frame: NSRect(x: 24, y: h - 268, width: 452, height: 24))
+        fTunnelHost.placeholderString = "Hostname, e.g. desk.example.com"
+        c.addSubview(fTunnelHost)
+        c.addSubview(label("Needs cloudflared tunnel login/create and ~/.cloudflared/config.yml.", h - 292, small: true))
+
+        c.addSubview(label("🏠 LOCAL NETWORK", h - 326, bold: true))
+        cLan = NSButton(checkboxWithTitle: "Also answer on the LAN (plain HTTP, trusted networks only)", target: nil, action: nil)
+        cLan.frame = NSRect(x: 24, y: h - 352, width: 452, height: 22)
+        c.addSubview(cLan)
+
+        let save = NSButton(frame: NSRect(x: 336, y: 20, width: 140, height: 34))
+        save.title = "Save and restart"
+        save.bezelStyle = .rounded
+        save.keyEquivalent = "\r"
+        save.target = self; save.action = #selector(saveSettings)
+        c.addSubview(save)
+
+        let cancel = NSButton(frame: NSRect(x: 220, y: 20, width: 100, height: 34))
+        cancel.title = "Cancel"
+        cancel.bezelStyle = .rounded
+        cancel.target = self; cancel.action = #selector(closeSettings)
+        c.addSubview(cancel)
+
+        c.addSubview(label("Saved to ~/.elsewhere/.env. Saving restarts the service and creates a new link.", 62, small: true))
+        settingsWindow = win
+    }
+
+    @objc func closeSettings() { settingsWindow?.orderOut(nil) }
+
+    @objc func saveSettings() {
+        let pw = fPassword.stringValue.trimmingCharacters(in: .whitespaces)
+        guard pw.count >= 8, pw != "changeme" else {
+            let a = NSAlert()
+            a.messageText = "Password too short"
+            a.informativeText = "Use at least 8 characters. The server refuses to start otherwise."
+            a.runModal()
+            return
+        }
+        saveConfig([
+            "ELSEWHERE_PASSWORD": pw,
+            "TELEGRAM_TOKEN": fTgToken.stringValue.trimmingCharacters(in: .whitespaces),
+            "TELEGRAM_CHAT_ID": fTgChat.stringValue.trimmingCharacters(in: .whitespaces),
+            "ELSEWHERE_TUNNEL_NAME": fTunnelName.stringValue.trimmingCharacters(in: .whitespaces),
+            "ELSEWHERE_TUNNEL_HOST": fTunnelHost.stringValue.trimmingCharacters(in: .whitespaces),
+            "ELSEWHERE_BIND": cLan.state == .on ? "0.0.0.0" : "",
+        ])
+        settingsWindow?.orderOut(nil)
+        localMenuItem?.title = "🏠 Local network: \(lanLabel)"
+        appLog("configurazione salvata, riavvio del servizio")
+        startServices()   // password e bind si applicano solo al riavvio del server
+        sendNotification(title: "Elsewhere", subtitle: "Settings saved", message: "Service restarting with the new settings")
+    }
+
     // ── Avvio automatico al login ────────────────────────────────────────────
     var loginItemEnabled: Bool {
         if #available(macOS 13.0, *) { return SMAppService.mainApp.status == .enabled }
@@ -923,7 +1102,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         
         hasSleepAssertion = true
-        print("⚡ Sleep and display assertions enabled (system: \(systemAssertionID), display: \(displayAssertionID))")
+        appLog("⚡ Sleep and display assertions enabled (system: \(systemAssertionID), display: \(displayAssertionID))")
     }
     
     func disableSleepAssertion() {
@@ -937,7 +1116,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             displayAssertionID = 0
         }
         hasSleepAssertion = false
-        print("🛑 Sleep assertions released")
+        appLog("🛑 Sleep assertions released")
     }
     
     func wakeDisplay() {
@@ -967,11 +1146,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func handleSystemSleep(_ notification: Notification) {
-        print("💤 System going to sleep…")
+        appLog("💤 System going to sleep…")
     }
     
     @objc func handleSystemWake(_ notification: Notification) {
-        print("☀️ System woke up")
+        appLog("☀️ System woke up")
         sendNotification(title: "Elsewhere ☀️", subtitle: "Mac woke up", message: "Restoring the connection and waking the screen…")
         
         // Risveglia istantaneamente lo schermo dallo sleep
@@ -996,7 +1175,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.updateUI()
             
             // Riavvia il tunnel Cloudflare per riallineare il socket HTTP2
-            print("🔄 Restarting the Cloudflare tunnel after wake…")
+            appLog("🔄 Restarting the Cloudflare tunnel after wake…")
             self.startTunnel()
         }
     }

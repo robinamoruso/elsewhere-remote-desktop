@@ -14,6 +14,9 @@ Elsewhere Remote Desktop — remote desktop per macOS via browser: app Swift nel
 ## Runtime
 
 - Dati fuori dal repo: `~/.elsewhere/{venv,.env,server.log,tunnel.log}`. L'app esegue il `server.py` **incluso nel bundle**, non quello del repo.
+- La finestra Settings dell'app è l'unico modo previsto per cambiare configurazione: `saveConfig()` riscrive il `.env` (conserva le chiavi ignote, perde i commenti, rimette 600) e poi `startServices()`. Il `.env` resta modificabile a mano per la modalità terminale.
+- Niente `URLSession` verso internet: su Mac con estensioni di rete attive (VPN, relay) può non uscire. Per le chiamate esterne si usa `curl` via `Process` (Telegram, check del tunnel). Loopback con URLSession va bene.
+- `appLog()` scrive in `~/.elsewhere/app.log`: i `print` di un'app lanciata dal Finder non si vedono. Mai registrare URL con dentro token.
 - Config: env var > `~/.elsewhere/.env` (`envValue()` in Swift, `source` in `start.sh`, env in `server.py`).
 - Porta `8765` fissa in `Elsewhere.swift`, `start.sh`, `server.py` (default di `ELSEWHERE_PORT`).
 
