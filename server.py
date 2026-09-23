@@ -25,7 +25,7 @@ from Quartz.CoreGraphics import (
 
 PASSWORD  = os.environ.get("ELSEWHERE_PASSWORD", "")
 if PASSWORD in ("", "changeme") or len(PASSWORD) < 8:
-    sys.exit("ELSEWHERE_PASSWORD assente, troppo corta (min 8) o ancora 'changeme': configura ~/.elsewhere/.env")
+    sys.exit("ELSEWHERE_PASSWORD missing, too short (min 8) or still 'changeme': edit ~/.elsewhere/.env")
 TOKEN_TTL = 3600
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -81,13 +81,13 @@ async def auth(data: dict, request: Request):
         # ponytail: limite globale, non per IP (dietro il tunnel l'IP è sempre 127.0.0.1)
         async with _auth_lock:
             await asyncio.sleep(1)
-        log(f"login FALLITO da {request.client.host if request.client else '?'}")
+        log(f"login FAILED from {request.client.host if request.client else '?'}")
         raise HTTPException(401, "Wrong password")
     now = time.time()
     for t in [t for t, exp in _sessions.items() if exp < now]: del _sessions[t]
     tok = secrets.token_urlsafe(32)
     _sessions[tok] = now + TOKEN_TTL
-    log(f"login RIUSCITO da {request.client.host if request.client else '?'}")
+    log(f"login OK from {request.client.host if request.client else '?'}")
     return {"token": tok}
 
 @app.get("/clipboard", dependencies=[Depends(require_token)])
@@ -125,7 +125,7 @@ async def upload(request: Request, x_filename: str = Header("")):
                 f.close(); dest.unlink(missing_ok=True)
                 raise HTTPException(413, "too large")
             f.write(chunk)
-    log(f"file ricevuto: {dest.name} ({size/1024:.0f} KB)")
+    log(f"file received: {dest.name} ({size/1024:.0f} KB)")
     return {"saved": dest.name}
 
 def wake_display():
@@ -226,7 +226,7 @@ async def ws_endpoint(websocket: WebSocket, token: str):
     if not valid_token(token):
         await websocket.close(code=4001); return
     await websocket.accept()
-    log("sessione APERTA")
+    log("session OPENED")
     wake_display()
 
     quality, scale, fps = 55, 0.8, 20

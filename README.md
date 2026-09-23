@@ -10,8 +10,6 @@ No account, not even a Cloudflare one. No ports to open, no VPN, no subscription
 📱 any browser  ──HTTPS :443──▶  Cloudflare  ◀──outbound tunnel──  your Mac
 ```
 
-> The UI is in Italian for now. The code and this README are in English.
-
 ---
 
 ## The problem
@@ -56,7 +54,8 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, long-press for right-click, two fingers to scroll, double-tap for the keyboard, plus a bar with ⌘C, ⌘V, ⌘Z, ⌘Space and the arrow keys.
 - **Any keyboard layout.** Keys are sent by *physical position*, so Italian, German and French keyboards just work. *Win KB* mode maps Ctrl to ⌘ when you connect from a Windows PC.
 - **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
-- **Clipboard both ways**, multiple monitors, FPS, quality and scale sliders, a live fps/bandwidth readout, and a zoom that follows the cursor.
+- **It tunes itself.** When the connection can't keep up, quality and scale step down on their own and climb back when it recovers. Touch a slider and it gets out of your way.
+- **Clipboard both ways**, multiple monitors, a live fps/bandwidth readout, and a zoom that follows the cursor.
 - **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.
 - **No limits.** No session timeouts, no "commercial use detected" warning, no device cap.
 - **Scriptable.** Anything that can open a WebSocket, such as a script, a bot or an AI agent, can see the screen and drive the Mac (see [Protocol](#protocol)).
@@ -73,7 +72,7 @@ Each choice below trades something away on purpose.
 `cloudflared` uses QUIC by default, and UDP is the first thing restrictive networks block. Elsewhere forces `--protocol http2`: it's a bit less fast in theory, but it connects in far more places.
 
 **JPEG frames over a WebSocket instead of WebRTC or a video codec.**
-WebRTC relies on UDP, STUN and TURN, and that's exactly what firewalls block. A WebSocket goes wherever HTTPS goes. Frames go down as raw binary and identical ones are skipped, so an idle screen costs almost nothing. The tradeoff: more bandwidth than H.264 when the screen is busy. The FPS, quality and scale sliders let you tune it on the fly.
+WebRTC relies on UDP, STUN and TURN, and that's exactly what firewalls block. A WebSocket goes wherever HTTPS goes. Frames go down as raw binary and identical ones are skipped, so an idle screen costs almost nothing. The tradeoff: more bandwidth than H.264 when the screen is busy. The client watches the real frame rate and steps quality and scale down when the link is slow, so a 4G connection degrades instead of stalling.
 
 **Native input with Quartz `CGEvent` instead of `pyautogui`.**
 Events go straight into the macOS event system. That means no automation-library overhead, no cursor jumping, correct multi-monitor coordinates, and real modifier keys.
@@ -241,7 +240,8 @@ Elsewhere.app (Swift) ── starts, watches and heals ──▶ server.py + clo
 | `server.py` | ~260 | auth, WebSocket streaming, native input, clipboard |
 | `static/index.html` | ~560 | the whole web client |
 | `create_app_bundle.py` | ~110 | icon, `Info.plist`, `swiftc`, codesign, install |
-| `install.sh` / `start.sh` | ~90 | setup and terminal mode |
+| `install.sh` / `start.sh` | ~95 | setup and terminal mode |
+| `test_auto_quality.js` | ~30 | `node test_auto_quality.js` checks the adaptive logic |
 
 Logs are written to `~/.elsewhere/server.log` and `tunnel.log`.
 

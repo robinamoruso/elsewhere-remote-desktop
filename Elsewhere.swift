@@ -53,7 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // Il server ascolta solo su loopback salvo opt-in esplicito: senza, il link
     // Wi-Fi non esiste (ed è comunque HTTP in chiaro, quindi si sceglie a mano)
     lazy var lanEnabled = envValue("ELSEWHERE_BIND") == "0.0.0.0"
-    var lanLabel: String { lanEnabled ? localUrl : "disattivata (ELSEWHERE_BIND=0.0.0.0 per abilitarla)" }
+    var lanLabel: String { lanEnabled ? localUrl : "off (ELSEWHERE_BIND=0.0.0.0 to enable)" }
 
     // Variabile d'ambiente, altrimenti letta da ~/.elsewhere/.env
     func envValue(_ key: String) -> String {
@@ -146,56 +146,56 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let menu = NSMenu()
         
-        statusMenuItem = NSMenuItem(title: "Elsewhere: 🟡 Avvio...", action: nil, keyEquivalent: "")
+        statusMenuItem = NSMenuItem(title: "Elsewhere: 🟡 Starting…", action: nil, keyEquivalent: "")
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)
         menu.addItem(NSMenuItem.separator())
         
-        publicUrlMenuItem = NSMenuItem(title: "🌐 Link: In connessione...", action: #selector(copyPublicLink), keyEquivalent: "")
+        publicUrlMenuItem = NSMenuItem(title: "🌐 Link: connecting…", action: #selector(copyPublicLink), keyEquivalent: "")
         menu.addItem(publicUrlMenuItem)
         
-        copyMenuItem = NSMenuItem(title: "📋 Copia Link Pubblico", action: #selector(copyPublicLink), keyEquivalent: "c")
+        copyMenuItem = NSMenuItem(title: "📋 Copy public link", action: #selector(copyPublicLink), keyEquivalent: "c")
         menu.addItem(copyMenuItem)
         
-        regenMenuItem = NSMenuItem(title: "🔄 Rigenera Link Cloudflare", action: #selector(regenerateLink), keyEquivalent: "r")
+        regenMenuItem = NSMenuItem(title: "🔄 New Cloudflare link", action: #selector(regenerateLink), keyEquivalent: "r")
         menu.addItem(regenMenuItem)
         
-        openMenuItem = NSMenuItem(title: "🌐 Apri nel Browser", action: #selector(openInBrowser), keyEquivalent: "o")
+        openMenuItem = NSMenuItem(title: "🌐 Open in browser", action: #selector(openInBrowser), keyEquivalent: "o")
         menu.addItem(openMenuItem)
         
-        telegramMenuItem = NSMenuItem(title: "📲 Invia Link su Telegram", action: #selector(triggerSendTelegram), keyEquivalent: "t")
+        telegramMenuItem = NSMenuItem(title: "📲 Send link to Telegram", action: #selector(triggerSendTelegram), keyEquivalent: "t")
         menu.addItem(telegramMenuItem)
         menu.addItem(NSMenuItem.separator())
         
-        localMenuItem = NSMenuItem(title: "🏠 Rete locale: \(lanLabel)", action: #selector(copyLocalLink), keyEquivalent: "")
+        localMenuItem = NSMenuItem(title: "🏠 Local network: \(lanLabel)", action: #selector(copyLocalLink), keyEquivalent: "")
         menu.addItem(localMenuItem)
         
-        pwdMenuItem = NSMenuItem(title: "🔑 Copia password", action: #selector(copyPassword), keyEquivalent: "")
+        pwdMenuItem = NSMenuItem(title: "🔑 Copy password", action: #selector(copyPassword), keyEquivalent: "")
         menu.addItem(pwdMenuItem)
 
-        let showPwdItem = NSMenuItem(title: "👁 Mostra password…", action: #selector(showPassword), keyEquivalent: "")
+        let showPwdItem = NSMenuItem(title: "👁 Show password…", action: #selector(showPassword), keyEquivalent: "")
         menu.addItem(showPwdItem)
         menu.addItem(NSMenuItem.separator())
         
-        antiSleepMenuItem = NSMenuItem(title: "⚡ Anti-Standby: 🟢 Attivo", action: #selector(toggleAntiSleep), keyEquivalent: "")
+        antiSleepMenuItem = NSMenuItem(title: "⚡ Keep awake: 🟢 On", action: #selector(toggleAntiSleep), keyEquivalent: "")
         menu.addItem(antiSleepMenuItem)
         
-        wolMenuItem = NSMenuItem(title: "📡 Dati Wake-on-LAN (WoL)...", action: #selector(showWoLInfo), keyEquivalent: "w")
+        wolMenuItem = NSMenuItem(title: "📡 Wake-on-LAN details…", action: #selector(showWoLInfo), keyEquivalent: "w")
         menu.addItem(wolMenuItem)
 
-        loginMenuItem = NSMenuItem(title: "🚀 Avvia al login", action: #selector(toggleLoginItem), keyEquivalent: "")
+        loginMenuItem = NSMenuItem(title: "🚀 Start at login", action: #selector(toggleLoginItem), keyEquivalent: "")
         loginMenuItem.state = loginItemEnabled ? .on : .off
         menu.addItem(loginMenuItem)
         menu.addItem(NSMenuItem.separator())
         
-        let openWinItem = NSMenuItem(title: "🖥️ Apri Pannello di Controllo", action: #selector(showWindow), keyEquivalent: "p")
+        let openWinItem = NSMenuItem(title: "🖥️ Open control panel", action: #selector(showWindow), keyEquivalent: "p")
         menu.addItem(openWinItem)
         
-        toggleMenuItem = NSMenuItem(title: "⏸️ Ferma Servizio", action: #selector(toggleService), keyEquivalent: "")
+        toggleMenuItem = NSMenuItem(title: "⏸️ Stop service", action: #selector(toggleService), keyEquivalent: "")
         menu.addItem(toggleMenuItem)
         menu.addItem(NSMenuItem.separator())
         
-        let quitItem = NSMenuItem(title: "🚪 Esci", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "🚪 Quit", action: #selector(quitApp), keyEquivalent: "q")
         menu.addItem(quitItem)
         
         statusItem.menu = menu
@@ -222,7 +222,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.addSubview(titleLbl)
         
         winStatusLabel = NSTextField(frame: NSRect(x: 340, y: h - 46, width: 136, height: 24))
-        winStatusLabel.stringValue = "🟡 In avvio..."
+        winStatusLabel.stringValue = "🟡 Starting…"
         winStatusLabel.font = NSFont.systemFont(ofSize: 13)
         winStatusLabel.isEditable = false
         winStatusLabel.isBordered = false
@@ -230,20 +230,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.addSubview(winStatusLabel)
         
         let sec1 = NSTextField(frame: NSRect(x: 24, y: h - 86, width: 452, height: 18))
-        sec1.stringValue = "🌐 LINK PUBBLICO CLOUDFLARE:"
+        sec1.stringValue = "🌐 PUBLIC CLOUDFLARE LINK:"
         sec1.font = NSFont.boldSystemFont(ofSize: 11)
         sec1.isEditable = false; sec1.isBordered = false; sec1.backgroundColor = .clear
         content.addSubview(sec1)
         
         winUrlField = NSTextField(frame: NSRect(x: 24, y: h - 126, width: 452, height: 34))
-        winUrlField.stringValue = "In attesa di Cloudflare..."
+        winUrlField.stringValue = "Waiting for Cloudflare…"
         winUrlField.font = NSFont.systemFont(ofSize: 13)
         winUrlField.isEditable = false
         winUrlField.isSelectable = true
         content.addSubview(winUrlField)
         
         winCopyBtn = NSButton(frame: NSRect(x: 24, y: h - 170, width: 102, height: 32))
-        winCopyBtn.title = "📋 Copia"
+        winCopyBtn.title = "📋 Copy"
         winCopyBtn.bezelStyle = .rounded
         winCopyBtn.target = self
         winCopyBtn.action = #selector(copyPublicLink)
@@ -257,7 +257,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.addSubview(winOpenBtn)
         
         winRegenBtn = NSButton(frame: NSRect(x: 242, y: h - 170, width: 110, height: 32))
-        winRegenBtn.title = "🔄 Rigenera"
+        winRegenBtn.title = "🔄 New link"
         winRegenBtn.bezelStyle = .rounded
         winRegenBtn.target = self
         winRegenBtn.action = #selector(regenerateLink)
@@ -271,32 +271,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.addSubview(winTelegramBtn)
         
         let sec2 = NSTextField(frame: NSRect(x: 24, y: h - 216, width: 452, height: 18))
-        sec2.stringValue = "🏠 CONNESSIONE LOCALE & CREDENZIALI:"
+        sec2.stringValue = "🏠 LOCAL NETWORK & CREDENTIALS:"
         sec2.font = NSFont.boldSystemFont(ofSize: 11)
         sec2.isEditable = false; sec2.isBordered = false; sec2.backgroundColor = .clear
         content.addSubview(sec2)
         
         let locField = NSTextField(frame: NSRect(x: 24, y: h - 250, width: 330, height: 26))
-        locField.stringValue = "Rete locale: \(lanLabel)"
+        locField.stringValue = "Local network: \(lanLabel)"
         locField.font = NSFont.systemFont(ofSize: 12)
         locField.isEditable = false; locField.isSelectable = true
         content.addSubview(locField)
         
         let copyLocBtn = NSButton(frame: NSRect(x: 364, y: h - 252, width: 112, height: 30))
-        copyLocBtn.title = "📋 Copia"
+        copyLocBtn.title = "📋 Copy"
         copyLocBtn.bezelStyle = .rounded
         copyLocBtn.target = self
         copyLocBtn.action = #selector(copyLocalLink)
         content.addSubview(copyLocBtn)
         
         let pwdField = NSTextField(frame: NSRect(x: 24, y: h - 286, width: 330, height: 26))
-        pwdField.stringValue = "Password: ••••••••  (in chiaro dal menu 👁)"
+        pwdField.stringValue = "Password: ••••••••  (show it from the 👁 menu)"
         pwdField.font = NSFont.systemFont(ofSize: 12)
         pwdField.isEditable = false; pwdField.isSelectable = true
         content.addSubview(pwdField)
         
         let copyPwdBtn = NSButton(frame: NSRect(x: 364, y: h - 288, width: 112, height: 30))
-        copyPwdBtn.title = "📋 Copia"
+        copyPwdBtn.title = "📋 Copy"
         copyPwdBtn.bezelStyle = .rounded
         copyPwdBtn.target = self
         copyPwdBtn.action = #selector(copyPassword)
@@ -304,40 +304,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // Sezione Anti-Standby e Wake-on-LAN
         let sec3 = NSTextField(frame: NSRect(x: 24, y: h - 330, width: 452, height: 18))
-        sec3.stringValue = "⚡ GESTIONE STANDBY & ACCENSIONE (WoL):"
+        sec3.stringValue = "⚡ SLEEP & WAKE-ON-LAN:"
         sec3.font = NSFont.boldSystemFont(ofSize: 11)
         sec3.isEditable = false; sec3.isBordered = false; sec3.backgroundColor = .clear
         content.addSubview(sec3)
         
         winAntiSleepBtn = NSButton(frame: NSRect(x: 24, y: h - 366, width: 330, height: 30))
-        winAntiSleepBtn.title = "⚡ Anti-Standby: 🟢 Attivo (Mac sempre sveglio)"
+        winAntiSleepBtn.title = "⚡ Keep awake: 🟢 On (Mac never sleeps)"
         winAntiSleepBtn.bezelStyle = .rounded
         winAntiSleepBtn.target = self
         winAntiSleepBtn.action = #selector(toggleAntiSleep)
         content.addSubview(winAntiSleepBtn)
         
         winWolBtn = NSButton(frame: NSRect(x: 364, y: h - 366, width: 112, height: 30))
-        winWolBtn.title = "📡 Info WoL"
+        winWolBtn.title = "📡 WoL info"
         winWolBtn.bezelStyle = .rounded
         winWolBtn.target = self
         winWolBtn.action = #selector(showWoLInfo)
         content.addSubview(winWolBtn)
         
         let infoLbl = NSTextField(frame: NSRect(x: 24, y: h - 438, width: 452, height: 44))
-        infoLbl.stringValue = "💡 Anti-standby impedisce al Mac di addormentarsi durante l'uso da remoto. Se il Mac va in sleep o si risveglia, il tunnel Cloudflare e le notifiche Telegram si ripristinano automaticamente."
+        infoLbl.stringValue = "💡 Keep awake stops the Mac falling asleep while you use it remotely. If it does sleep and wake, the Cloudflare tunnel and the Telegram notification are rebuilt automatically."
         infoLbl.font = NSFont.systemFont(ofSize: 11)
         infoLbl.isEditable = false; infoLbl.isBordered = false; infoLbl.backgroundColor = .clear
         content.addSubview(infoLbl)
         
         winToggleBtn = NSButton(frame: NSRect(x: 24, y: 20, width: 160, height: 34))
-        winToggleBtn.title = "⏸️ Ferma Servizio"
+        winToggleBtn.title = "⏸️ Stop service"
         winToggleBtn.bezelStyle = .rounded
         winToggleBtn.target = self
         winToggleBtn.action = #selector(toggleService)
         content.addSubview(winToggleBtn)
         
         let quitBtn = NSButton(frame: NSRect(x: 364, y: 20, width: 112, height: 34))
-        quitBtn.title = "🚪 Esci"
+        quitBtn.title = "🚪 Quit"
         quitBtn.bezelStyle = .rounded
         quitBtn.target = self
         quitBtn.action = #selector(quitApp)
@@ -385,7 +385,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             for pid in out.components(separatedBy: .whitespacesAndNewlines) {
                 // Sulla porta potrebbe esserci un servizio altrui: uccidiamo solo server.py
                 guard processCommand(pid).contains("server.py") else {
-                    print("⚠️ Porta \(port) occupata da un altro processo (pid \(pid)), non lo tocco")
+                    print("⚠️ Port \(port) is used by another process (pid \(pid)), leaving it alone")
                     continue
                 }
                 let k = Process()
@@ -546,17 +546,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 // 1. Server Python locale (causa dei 502)
                 self.serverFails = ok ? 0 : self.serverFails + 1
                 if !(self.serverProcess?.isRunning ?? false) || self.serverFails >= 2 {
-                    print("🩺 Watchdog: server locale non risponde, riavvio...")
+                    print("🩺 Watchdog: local server not responding, restarting…")
                     self.serverProcess?.terminate()
                     self.killServerProcesses()
                     self.startServer()
-                    self.sendNotification(title: "Elsewhere 🩺", subtitle: "Watchdog", message: "Server locale riavviato")
+                    self.sendNotification(title: "Elsewhere 🩺", subtitle: "Watchdog", message: "Local server restarted")
                     return
                 }
 
                 // 2. Processo cloudflared morto
                 if !(self.tunnelProcess?.isRunning ?? false) {
-                    print("🩺 Watchdog: cloudflared terminato, riavvio tunnel...")
+                    print("🩺 Watchdog: cloudflared died, restarting the tunnel…")
                     self.startTunnel()
                     return
                 }
@@ -569,8 +569,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         guard self.isRunning, self.publicUrl == url else { return }
                         self.publicFails = reachable ? 0 : self.publicFails + 1
                         if self.publicFails >= 3 {
-                            print("🩺 Watchdog: link pubblico irraggiungibile, nuovo tunnel...")
-                            self.sendNotification(title: "Elsewhere 🩺", subtitle: "Watchdog", message: "Tunnel irraggiungibile, rigenero il link")
+                            print("🩺 Watchdog: public link unreachable, new tunnel…")
+                            self.sendNotification(title: "Elsewhere 🩺", subtitle: "Watchdog", message: "Tunnel unreachable, rebuilding the link")
                             self.startTunnel()
                         }
                     }
@@ -615,7 +615,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             self.isServerReady = true
                             self.isRegenerating = false
                             self.copyToClipboard(url)
-                            self.sendNotification(title: "Elsewhere Attivo 🚀", subtitle: "Nuovo link pronto e copiato!", message: url)
+                            self.sendNotification(title: "Elsewhere is up 🚀", subtitle: "New link ready and copied", message: url)
                             self.sendTelegram(targetUrl: url, isManual: false)
                             self.updateUI()
                         }
@@ -631,12 +631,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             if !self.isRunning {
                 self.statusItem.button?.title = " Off"
-                self.statusMenuItem.title = "Elsewhere: ⚪ Spento"
-                self.publicUrlMenuItem.title = "🌐 Link: Nessuno"
-                self.winStatusLabel.stringValue = "⚪ Spento"
-                self.winUrlField.stringValue = "Servizio non attivo."
-                self.toggleMenuItem.title = "▶️ Avvia Servizio"
-                self.winToggleBtn.title = "▶️ Avvia Servizio"
+                self.statusMenuItem.title = "Elsewhere: ⚪ Off"
+                self.publicUrlMenuItem.title = "🌐 Link: none"
+                self.winStatusLabel.stringValue = "⚪ Off"
+                self.winUrlField.stringValue = "Service is not running."
+                self.toggleMenuItem.title = "▶️ Start service"
+                self.winToggleBtn.title = "▶️ Start service"
                 self.copyMenuItem.isEnabled = false
                 self.openMenuItem.isEnabled = false
                 self.regenMenuItem.isEnabled = false
@@ -648,12 +648,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } else if self.publicUrl.isEmpty {
                 // In attesa che Cloudflare generi l'URL
                 self.statusItem.button?.title = " …"
-                self.statusMenuItem.title = "Elsewhere: 🟡 Connessione..."
-                self.publicUrlMenuItem.title = "🌐 Link: In attesa di Cloudflare..."
-                self.winStatusLabel.stringValue = "🟡 Connessione..."
-                self.winUrlField.stringValue = "Generazione nuovo tunnel Cloudflare in corso..."
-                self.toggleMenuItem.title = "⏸️ Ferma Servizio"
-                self.winToggleBtn.title = "⏸️ Ferma Servizio"
+                self.statusMenuItem.title = "Elsewhere: 🟡 Connecting…"
+                self.publicUrlMenuItem.title = "🌐 Link: waiting for Cloudflare…"
+                self.winStatusLabel.stringValue = "🟡 Connecting…"
+                self.winUrlField.stringValue = "Creating a new Cloudflare tunnel…"
+                self.toggleMenuItem.title = "⏸️ Stop service"
+                self.winToggleBtn.title = "⏸️ Stop service"
                 self.copyMenuItem.isEnabled = false
                 self.openMenuItem.isEnabled = false
                 self.regenMenuItem.isEnabled = false
@@ -665,13 +665,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } else if !self.isServerReady {
                 // Link Cloudflare pronto, server locale in preparazione!
                 self.statusItem.button?.title = " …"
-                self.statusMenuItem.title = "Elsewhere: 🟡 Avvio server..."
+                self.statusMenuItem.title = "Elsewhere: 🟡 Starting server…"
                 let short = self.publicUrl.replacingOccurrences(of: "https://", with: "")
-                self.publicUrlMenuItem.title = "🌐 Link: \(short) (avvio...)"
-                self.winStatusLabel.stringValue = "🟡 Avvio server locale..."
+                self.publicUrlMenuItem.title = "🌐 Link: \(short) (starting…)"
+                self.winStatusLabel.stringValue = "🟡 Starting local server…"
                 self.winUrlField.stringValue = self.publicUrl
-                self.toggleMenuItem.title = "⏸️ Ferma Servizio"
-                self.winToggleBtn.title = "⏸️ Ferma Servizio"
+                self.toggleMenuItem.title = "⏸️ Stop service"
+                self.winToggleBtn.title = "⏸️ Stop service"
                 self.copyMenuItem.isEnabled = true
                 self.openMenuItem.isEnabled = true
                 self.regenMenuItem.isEnabled = true
@@ -688,8 +688,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.publicUrlMenuItem.title = "🌐 Link: \(short)"
                 self.winStatusLabel.stringValue = "🟢 Online"
                 self.winUrlField.stringValue = self.publicUrl
-                self.toggleMenuItem.title = "⏸️ Ferma Servizio"
-                self.winToggleBtn.title = "⏸️ Ferma Servizio"
+                self.toggleMenuItem.title = "⏸️ Stop service"
+                self.winToggleBtn.title = "⏸️ Stop service"
                 self.copyMenuItem.isEnabled = true
                 self.openMenuItem.isEnabled = true
                 self.regenMenuItem.isEnabled = true
@@ -702,14 +702,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             // Anti-Sleep UI status
             if self.preventSleepEnabled && self.isRunning {
-                self.antiSleepMenuItem?.title = "⚡ Anti-Standby: 🟢 Attivo"
-                self.winAntiSleepBtn?.title = "⚡ Anti-Standby: 🟢 Attivo (Mac sempre sveglio)"
+                self.antiSleepMenuItem?.title = "⚡ Keep awake: 🟢 On"
+                self.winAntiSleepBtn?.title = "⚡ Keep awake: 🟢 On (Mac never sleeps)"
             } else if !self.preventSleepEnabled {
-                self.antiSleepMenuItem?.title = "⚡ Anti-Standby: ⚪ Disattivato"
-                self.winAntiSleepBtn?.title = "⚡ Anti-Standby: ⚪ Disattivato (Standby normale)"
+                self.antiSleepMenuItem?.title = "⚡ Keep awake: ⚪ Off"
+                self.winAntiSleepBtn?.title = "⚡ Keep awake: ⚪ Off (normal sleep)"
             } else {
-                self.antiSleepMenuItem?.title = "⚡ Anti-Standby: ⚪ In Pausa (Servizio Off)"
-                self.winAntiSleepBtn?.title = "⚡ Anti-Standby: ⚪ In Pausa (Servizio Off)"
+                self.antiSleepMenuItem?.title = "⚡ Keep awake: ⚪ Paused (service off)"
+                self.winAntiSleepBtn?.title = "⚡ Keep awake: ⚪ Paused (service off)"
             }
         }
     }
@@ -732,29 +732,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func copyPublicLink() {
         if !publicUrl.isEmpty {
             copyToClipboard(publicUrl)
-            sendNotification(title: "Elsewhere", subtitle: "Link Copiato", message: publicUrl)
+            sendNotification(title: "Elsewhere", subtitle: "Link copied", message: publicUrl)
         }
     }
     
     @objc func copyLocalLink() {
         guard !localUrl.isEmpty else { return }
         copyToClipboard(localUrl)
-        sendNotification(title: "Elsewhere", subtitle: "Link Locale Copiato", message: localUrl)
+        sendNotification(title: "Elsewhere", subtitle: "Local link copied", message: localUrl)
     }
     
     @objc func copyPassword() {
         copyToClipboard(password)
-        sendNotification(title: "Elsewhere", subtitle: "Password Copiata", message: "Negli appunti")
+        sendNotification(title: "Elsewhere", subtitle: "Password copied", message: "In your clipboard")
     }
     
     // In chiaro solo su richiesta esplicita: il pannello finisce nei frame
     // inviati a chi è collegato da remoto
     @objc func showPassword() {
         let alert = NSAlert()
-        alert.messageText = "🔑 Password di Elsewhere"
+        alert.messageText = "🔑 Elsewhere password"
         alert.informativeText = password
-        alert.addButton(withTitle: "📋 Copia")
-        alert.addButton(withTitle: "Chiudi")
+        alert.addButton(withTitle: "📋 Copy")
+        alert.addButton(withTitle: "Close")
         if alert.runModal() == .alertFirstButtonReturn { copyPassword() }
     }
 
@@ -763,7 +763,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             startServices()
             return
         }
-        sendNotification(title: "Elsewhere", subtitle: "Rigenerazione...", message: "Nuovo link in arrivo")
+        sendNotification(title: "Elsewhere", subtitle: "New link…", message: "Generating a fresh URL")
         startTunnel()
     }
     
@@ -785,10 +785,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             serverProcess?.terminate()
             cleanProcesses()
             updateUI()
-            sendNotification(title: "Elsewhere", subtitle: "Disattivato", message: "Server e tunnel spenti")
+            sendNotification(title: "Elsewhere", subtitle: "Stopped", message: "Server and tunnel are off")
         } else {
             startServices()
-            sendNotification(title: "Elsewhere", subtitle: "Avvio...", message: "Server e tunnel in avvio")
+            sendNotification(title: "Elsewhere", subtitle: "Starting…", message: "Server and tunnel are starting")
         }
     }
     
@@ -802,10 +802,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func triggerSendTelegram() {
         guard !publicUrl.isEmpty else {
-            sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Il link pubblico non è ancora pronto.")
+            sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "The public link isn't ready yet.")
             return
         }
-        sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Invio del link in corso...")
+        sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Sending the link…")
         sendTelegram(targetUrl: publicUrl, isManual: true)
     }
     
@@ -819,9 +819,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             loadTelegramCredentials()
         }
         guard !telegramToken.isEmpty, !telegramChatId.isEmpty else {
-            print("Credenziali Telegram non trovate")
+            print("Telegram credentials not found")
             if isManual {
-                sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Credenziali Telegram non trovate!")
+                sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Telegram credentials not found")
             }
             return
         }
@@ -829,17 +829,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "dd/MM/yyyy HH:mm:ss"
         let timestamp = dateFormatter.string(from: Date())
-        let antiSleepDesc = (preventSleepEnabled && isRunning) ? "🟢 Attivo" : "⚪ Spento"
+        let antiSleepDesc = (preventSleepEnabled && isRunning) ? "🟢 on" : "⚪ off"
         let mac = macAddress.isEmpty ? getHardwareMAC() : macAddress
         
         let text = """
-        🖥️ *Elsewhere è Online!*
+        🖥️ *Elsewhere is online*
         
-        🌐 *Link Pubblico (Cloudflare):*
+        🌐 *Public link (Cloudflare):*
         \(targetUrl)
         
-        \(localUrl.isEmpty ? "" : "🏠 *Rete Locale (Wi-Fi):*\n`\(localUrl)`\n\n")\
-        ⚡ *Anti-Standby:* \(antiSleepDesc)
+        \(localUrl.isEmpty ? "" : "🏠 *Local network (Wi-Fi):*\n`\(localUrl)`\n\n")\
+        ⚡ *Keep awake:* \(antiSleepDesc)
         📡 *WoL MAC:* `\(mac)`
         
         ⏰ _\(timestamp)_
@@ -862,14 +862,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             if let error = error {
-                print("Errore invio Telegram: \(error)")
+                print("Telegram send failed: \(error)")
                 if isManual {
-                    self?.sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Errore: \(error.localizedDescription)")
+                    self?.sendNotification(title: "Elsewhere", subtitle: "Telegram", message: "Error: \(error.localizedDescription)")
                 }
             } else {
-                print("Notifica Telegram inviata con successo!")
+                print("Telegram notification sent")
                 if isManual {
-                    self?.sendNotification(title: "Elsewhere 📲", subtitle: "Telegram", message: "Link inviato al tuo Telegram!")
+                    self?.sendNotification(title: "Elsewhere 📲", subtitle: "Telegram", message: "Link sent to Telegram")
                 }
             }
         }
@@ -884,19 +884,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func toggleLoginItem() {
         guard #available(macOS 13.0, *) else {
-            sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Richiede macOS 13 o successivo")
+            sendNotification(title: "Elsewhere", subtitle: "Start at login", message: "Requires macOS 13 or later")
             return
         }
         do {
             if loginItemEnabled {
                 try SMAppService.mainApp.unregister()
-                sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Disattivato")
+                sendNotification(title: "Elsewhere", subtitle: "Start at login", message: "Disabled")
             } else {
                 try SMAppService.mainApp.register()
-                sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Elsewhere ripartirà da solo dopo un riavvio")
+                sendNotification(title: "Elsewhere", subtitle: "Start at login", message: "Elsewhere will start itself after a reboot")
             }
         } catch {
-            sendNotification(title: "Elsewhere", subtitle: "Avvio al login", message: "Errore: \(error.localizedDescription)")
+            sendNotification(title: "Elsewhere", subtitle: "Start at login", message: "Error: \(error.localizedDescription)")
         }
         loginMenuItem.state = loginItemEnabled ? .on : .off
     }
@@ -923,7 +923,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         
         hasSleepAssertion = true
-        print("⚡ Asserzioni anti-standby e anti-schermo-nero attivate (System: \(systemAssertionID), Display: \(displayAssertionID))")
+        print("⚡ Sleep and display assertions enabled (system: \(systemAssertionID), display: \(displayAssertionID))")
     }
     
     func disableSleepAssertion() {
@@ -937,7 +937,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             displayAssertionID = 0
         }
         hasSleepAssertion = false
-        print("🛑 Asserzioni anti-standby rilasciate")
+        print("🛑 Sleep assertions released")
     }
     
     func wakeDisplay() {
@@ -951,10 +951,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         preventSleepEnabled.toggle()
         if preventSleepEnabled {
             if isRunning { enableSleepAssertion() }
-            sendNotification(title: "Elsewhere ⚡", subtitle: "Anti-Standby Attivo", message: "Il Mac rimarrà sempre sveglio durante il servizio.")
+            sendNotification(title: "Elsewhere ⚡", subtitle: "Keep awake on", message: "The Mac will stay awake while the service runs.")
         } else {
             disableSleepAssertion()
-            sendNotification(title: "Elsewhere 💤", subtitle: "Anti-Standby Disattivato", message: "Il Mac potrà andare in standby normalmente.")
+            sendNotification(title: "Elsewhere 💤", subtitle: "Keep awake off", message: "The Mac can sleep normally again.")
         }
         updateUI()
     }
@@ -967,12 +967,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func handleSystemSleep(_ notification: Notification) {
-        print("💤 Standby di sistema rilevato...")
+        print("💤 System going to sleep…")
     }
     
     @objc func handleSystemWake(_ notification: Notification) {
-        print("☀️ Risveglio del sistema rilevato!")
-        sendNotification(title: "Elsewhere ☀️", subtitle: "Mac Risvegliato", message: "Ripristino connessione e riaccensione schermo...")
+        print("☀️ System woke up")
+        sendNotification(title: "Elsewhere ☀️", subtitle: "Mac woke up", message: "Restoring the connection and waking the screen…")
         
         // Risveglia istantaneamente lo schermo dallo sleep
         wakeDisplay()
@@ -992,11 +992,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             // Ricalcola IP locale
             self.localUrl = self.lanEnabled ? "http://\(self.getLocalIP()):\(self.port)" : ""
-            self.localMenuItem?.title = "🏠 Rete locale: \(self.lanLabel)"
+            self.localMenuItem?.title = "🏠 Local network: \(self.lanLabel)"
             self.updateUI()
             
             // Riavvia il tunnel Cloudflare per riallineare il socket HTTP2
-            print("🔄 Riavvio tunnel Cloudflare dopo risveglio da standby...")
+            print("🔄 Restarting the Cloudflare tunnel after wake…")
             self.startTunnel()
         }
     }
@@ -1037,26 +1037,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let mac = macAddress.isEmpty ? getHardwareMAC() : macAddress
         let ip = getLocalIP()
         let alert = NSAlert()
-        alert.messageText = "📡 Parametri Wake-on-LAN (WoL)"
+        alert.messageText = "📡 Wake-on-LAN details"
         alert.informativeText = """
-        Dati per risvegliare questo Mac da remoto:
+        What you need to wake this Mac remotely:
         
-        • Indirizzo MAC: \(mac)
-        • IP Locale (Wi-Fi): \(ip)
-        • Porta WoL: 9 (o 7) UDP
-        • Scheda di Rete: \(primaryInterfaceName)
+        • MAC address: \(mac)
+        • Local IP (Wi-Fi): \(ip)
+        • WoL port: 9 (or 7) UDP
+        • Interface: \(primaryInterfaceName)
         
-        Richiede 'Wake for network access' attivo (verifica: pmset -g | grep womp).
-        Puoi inviare un Magic Packet da app come 'Mocha WoL', 'Wake On Lan' o dal router.
+        Requires 'Wake for network access' (check with: pmset -g | grep womp).
+        Send the magic packet from an app like 'Mocha WoL' or from your router.
         """
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "📋 Copia MAC")
+        alert.addButton(withTitle: "📋 Copy MAC")
         alert.addButton(withTitle: "OK")
         
         let resp = alert.runModal()
         if resp == .alertFirstButtonReturn {
             copyToClipboard(mac)
-            sendNotification(title: "Elsewhere", subtitle: "WoL", message: "MAC copiato: \(mac)")
+            sendNotification(title: "Elsewhere", subtitle: "WoL", message: "MAC copied: \(mac)")
         }
     }
     

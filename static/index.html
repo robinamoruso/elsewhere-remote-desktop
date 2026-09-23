@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -76,27 +76,28 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
 <div id="login">
   <h2>🖥️ Elsewhere</h2>
   <input id="pwd" type="password" placeholder="Password" autofocus>
-  <button onclick="connect()">Connetti</button>
+  <button onclick="connect()">Connect</button>
   <div id="err"></div>
 </div>
 
 <div id="app">
   <div id="bar">
     <label>FPS <input type="range" id="r-fps" min="1" max="30" value="20" oninput="sendConfig()"> <span class="val" id="v-fps">20</span></label>
-    <label>Q <input type="range" id="r-qual" min="15" max="85" value="55" oninput="sendConfig()"> <span class="val" id="v-qual">55</span></label>
-    <label>Scala <input type="range" id="r-scale" min="0.3" max="1" step="0.05" value="0.8" oninput="sendConfig()"> <span class="val" id="v-scale">80%</span></label>
+    <label>Q <input type="range" id="r-qual" min="15" max="85" value="55" oninput="manualConfig()"> <span class="val" id="v-qual">55</span></label>
+    <label>Scale <input type="range" id="r-scale" min="0.3" max="1" step="0.05" value="0.8" oninput="manualConfig()"> <span class="val" id="v-scale">80%</span></label>
     <label>Monitor <select id="mon-select" onchange="sendConfig()"></select></label>
     <button class="btn" id="win-kb-btn" onclick="toggleWinKb()" title="Remap Ctrl→⌘, Alt→⌥, Win→⌘">⊞ Win KB</button>
-    <button class="btn" id="zoom-btn" onclick="toggleZoom()" title="Attiva/Disattiva zoom che segue il mouse">🔍 Zoom</button>
-    <button class="btn" onclick="copyFromMac()">📋 Copia Mac</button>
-    <button class="btn" onclick="pasteToMac()">📌 Incolla Mac</button>
-    <button class="btn" onclick="wakeDisplay()" title="Riaccende lo schermo se è nero o in standby">☀️ Sveglia</button>
-    <span id="stats" title="fps reali e banda in ingresso"></span>
+    <button class="btn active" id="auto-btn" onclick="toggleAuto()" title="Lower quality automatically when the connection can't keep up">⚙︎ Auto</button>
+    <button class="btn" id="zoom-btn" onclick="toggleZoom()" title="Zoom that follows the cursor">🔍 Zoom</button>
+    <button class="btn" onclick="copyFromMac()">📋 Copy from Mac</button>
+    <button class="btn" onclick="pasteToMac()">📌 Paste to Mac</button>
+    <button class="btn" onclick="wakeDisplay()" title="Wake the screen if it went dark">☀️ Wake</button>
+    <span id="stats" title="real fps and incoming bandwidth"></span>
     <span id="status" class="off">● Off</span>
   </div>
   <div id="screen-wrap"><canvas id="c"></canvas></div>
   <div id="mobile-bar">
-    <button onclick="wakeDisplay()" title="Sveglia schermo">☀️</button>
+    <button onclick="wakeDisplay()" title="Wake the screen">☀️</button>
     <button onclick="combo('command','c')">⌘C</button>
     <button onclick="combo('command','v')">⌘V</button>
     <button onclick="combo('command','z')">⌘Z</button>
@@ -112,7 +113,7 @@ canvas { display:block; position:absolute; touch-action:none; cursor:none; }
   </div>
 </div>
 
-<div id="drop-hint">📂 Rilascia per inviare al Mac</div>
+<div id="drop-hint">📂 Drop to send to the Mac</div>
 <div id="desk-cursor"></div>
 <div id="touch-cursor"></div>
 <input id="ghost" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -231,13 +232,13 @@ async function connect() {
   if (!pwd) return;
   try {
     const r = await fetch('/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pwd}) });
-    if (!r.ok) { document.getElementById('err').textContent='Password errata'; return; }
+    if (!r.ok) { document.getElementById('err').textContent='Wrong password'; return; }
     token = (await r.json()).token;
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').style.display   = 'block';
     if (mobile()) mBar.style.display = 'flex';
     openWS();
-  } catch { document.getElementById('err').textContent = 'Errore di rete'; }
+  } catch { document.getElementById('err').textContent = 'Network error'; }
 }
 
 function wakeDisplay() {
@@ -260,7 +261,7 @@ function openWS() {
     if (e.code === 4001) {  // sessione scaduta: serve la password, non un retry
       document.getElementById('app').style.display   = 'none';
       document.getElementById('login').style.display = 'flex';
-      document.getElementById('err').textContent = 'Sessione scaduta, rientra';
+      document.getElementById('err').textContent = 'Session expired, sign in again';
       token = null;
       return;
     }
@@ -272,7 +273,7 @@ function openWS() {
     const msg = JSON.parse(e.data);
     if (msg.type==='monitors') {
       const sel = document.getElementById('mon-select');
-      sel.innerHTML = msg.list.map(m=>`<option value="${m.index}">Schermo ${m.index+1} (${m.width}x${m.height})</option>`).join('');
+      sel.innerHTML = msg.list.map(m=>`<option value="${m.index}">Display ${m.index+1} (${m.width}x${m.height})</option>`).join('');
       sel.value = msg.current;
       return;
     }
@@ -294,11 +295,54 @@ async function drawFrame(blob) {
   bmp.close();
 }
 
-// ── STATISTICHE (fps reali e banda) ─────────────────────────────────────
+// ── STATISTICHE + QUALITÀ ADATTIVA ──────────────────────────────────────
 let statFrames = 0, statBytes = 0;
+let auto = true, slowSecs = 0, goodSecs = 0, autoStep = 0;
+
+// Gradini di degrado: prima la qualità JPEG, poi la scala
+const STEPS = [
+  {quality: 55, scale: 0.8},
+  {quality: 40, scale: 0.8},
+  {quality: 30, scale: 0.7},
+  {quality: 25, scale: 0.5},
+  {quality: 20, scale: 0.4},
+];
+
+// Decide il gradino successivo. Pura di proposito: la logica ha abbastanza
+// casi limite da meritare un test (vedi test_auto_quality.js).
+// A schermo fermo non arrivano frame: non è una rete lenta, non si tocca nulla.
+function autoNext(fps, target, step, slow, good, maxStep) {
+  if (fps <= 0) return { step, slow, good };
+  if (fps < target * 0.6)       { slow++; good = 0; }
+  else if (fps >= target * 0.9) { good++; slow = 0; }
+  if (slow >= 2 && step < maxStep) return { step: step + 1, slow: 0, good: 0 };
+  if (good >= 8 && step > 0)       return { step: step - 1, slow: 0, good: 0 };  // risale piano
+  return { step, slow, good };
+}
+
+function toggleAuto() {
+  auto = !auto;
+  document.getElementById('auto-btn').classList.toggle('active', auto);
+  slowSecs = goodSecs = 0;
+}
+
+function applyStep(i) {
+  autoStep = Math.max(0, Math.min(STEPS.length - 1, i));
+  document.getElementById('r-qual').value  = STEPS[autoStep].quality;
+  document.getElementById('r-scale').value = STEPS[autoStep].scale;
+  sendConfig();
+}
+
 setInterval(()=>{
   const el = document.getElementById('stats');
   el.textContent = ws?.readyState===1 ? `${statFrames} fps · ${Math.round(statBytes/1024)} KB/s` : '';
+
+  if (auto && ws?.readyState===1) {
+    const target = +document.getElementById('r-fps').value;
+    const next = autoNext(statFrames, target, autoStep, slowSecs, goodSecs, STEPS.length - 1);
+    slowSecs = next.slow; goodSecs = next.good;
+    if (next.step !== autoStep) applyStep(next.step);
+  }
   statFrames = 0; statBytes = 0;
 }, 1000);
 
@@ -317,13 +361,19 @@ document.addEventListener('drop', async e=>{
     try {
       const r = await fetch('/upload', { method:'POST', headers:{'X-Token':token, 'X-Filename':encodeURIComponent(file.name)}, body:file });
       const j = await r.json();
-      status.textContent = r.ok ? `✓ ${j.saved} in Download` : '✗ invio fallito';
-    } catch { status.textContent = '✗ invio fallito'; }
+      status.textContent = r.ok ? `✓ ${j.saved} → Downloads` : '✗ upload failed';
+    } catch { status.textContent = '✗ upload failed'; }
     setTimeout(()=>{ status.textContent='● On'; }, 3000);
   }
 });
 
 function send(o) { if(ws?.readyState===1) ws.send(JSON.stringify(o)); }
+
+// Toccare i cursori significa "faccio io": l'automatico si spegne
+function manualConfig() {
+  if (auto) toggleAuto();
+  sendConfig();
+}
 
 function sendConfig() {
   const fps=+document.getElementById('r-fps').value,
@@ -341,7 +391,7 @@ async function copyFromMac() {
   const r = await fetch('/clipboard',{headers:{'X-Token':token}});
   const {text} = await r.json();
   await navigator.clipboard.writeText(text).catch(()=>{});
-  alert('Copiato negli appunti del browser:\n'+text.slice(0,120));
+  alert('Copied to this browser\'s clipboard:\n'+text.slice(0,120));
 }
 async function pasteToMac() {
   const text = await navigator.clipboard.readText().catch(()=>'');

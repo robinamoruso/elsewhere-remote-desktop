@@ -27,11 +27,11 @@ swiftc -typecheck Elsewhere.swift                    # check veloce Swift
 ELSEWHERE_PASSWORD=x ELSEWHERE_PORT=18765 ~/.elsewhere/venv/bin/python3 server.py   # solo server, porta di test
 ```
 
-Non ci sono test automatici. Per verificare, smoke test con curl su `/health`, `/auth` e `/clipboard` (401 senza token), più una prova reale dal browser.
+Unico test: `node test_auto_quality.js` (logica della qualità adattiva, estratta da `index.html` come funzione pura). Per verificare, smoke test con curl su `/health`, `/auth` e `/clipboard` (401 senza token), più una prova reale dal browser.
 
 ## Convenzioni e insidie
 
-- Stringhe UI, commenti e log in **italiano**.
+- Stringhe visibili all'utente (menu, pannello, client web) e log in **inglese**; i commenti nel codice restano in italiano.
 - Pochi file e zero dipendenze nuove: Swift solo AppKit/Foundation/IOKit, client senza framework.
 - Dopo ogni modifica a `server.py` o `static/` bisogna **ricostruire l'app**, altrimenti gira la copia vecchia nel bundle.
 - La firma è ad hoc, quindi un rebuild può invalidare i permessi TCC (Registrazione schermo, Accessibilità). Se input o cattura smettono di funzionare, rimuovi e riaggiungi l'app nelle impostazioni.
