@@ -59,10 +59,10 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **It tunes itself.** When the connection genuinely can't keep up — frames are flowing and still falling behind — quality and scale step down, and climb back when it recovers. A still screen sends nothing, and that is never mistaken for a slow link. Touch a slider and it gets out of your way.
 - **One screen while you're away.** Optionally mirror extra displays onto the main one for as long as someone is connected, and put them back on disconnect.
 - **Clipboard both ways**, multiple monitors, a live fps/bandwidth readout, and a zoom that follows the cursor.
-- **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.
+- **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough, and reloading the page doesn't ask for the password again.
 - **No limits.** No session timeouts, no "commercial use detected" warning, no device cap.
 - **Scriptable.** Anything that can open a WebSocket, such as a script, a bot or an AI agent, can see the screen and drive the Mac (see [Protocol](#protocol)).
-- **Small enough to own.** About 2,400 lines and 5 Python dependencies. You can audit it in an afternoon.
+- **Small enough to own.** About 3,000 lines and 6 Python dependencies. You can audit it in an afternoon.
 
 ## Design decisions (and why)
 
@@ -78,13 +78,13 @@ Each choice below trades something away on purpose.
 WebRTC relies on UDP, STUN and TURN, and that's exactly what firewalls block. A WebSocket goes wherever HTTPS goes. Frames go down as raw binary and identical ones are skipped, so an idle screen costs almost nothing. The tradeoff: more bandwidth than H.264 when the screen is busy. The client watches the real frame rate and steps quality and scale down when the link is slow, so a 4G connection degrades instead of stalling.
 
 **Native input with Quartz `CGEvent` instead of `pyautogui`.**
-Events go straight into the macOS event system. That means no automation-library overhead, no cursor jumping, correct multi-monitor coordinates, and real modifier keys.
+Events go straight into the macOS event system, which matters in ways a wrapper hides. While a button is held macOS ignores "moved" events and wants *dragged* ones, or nothing follows the cursor — window edges included. Two quick clicks stay two single clicks unless the event carries a click count. And the pointer is absent from screen captures, so its position and image are read from `NSCursor` and drawn by the client. One line each at this level, and unreachable from above it.
 
 **A native Swift menu bar app instead of Electron.**
-It's one Swift file of about 1,100 lines using only AppKit, Foundation and IOKit. It starts instantly, stays light, and uses real macOS APIs for anti-sleep (IOKit power assertions) and for sleep and wake events.
+It's one Swift file of about 1,400 lines using only AppKit, Foundation and IOKit. It starts instantly, stays light, and uses real macOS APIs for anti-sleep (IOKit power assertions) and for sleep and wake events.
 
 **Python for the server.**
-`mss` captures the screen, `pyobjc` calls Quartz, and FastAPI handles HTTP and WebSockets in about 370 lines. There are 5 dependencies and no build step.
+`mss` captures the screen, `pyobjc` calls Quartz, and FastAPI handles HTTP and WebSockets in about 470 lines. There are 6 dependencies and no build step.
 
 **One HTML file for the client.**
 Vanilla JavaScript, no framework, no bundler, no `node_modules`. The server sends the page on connect, so it works in Safari on iOS, Chrome on Android, or a locked-down work laptop.
@@ -162,7 +162,7 @@ Then add `ELSEWHERE_TUNNEL_NAME=elsewhere` and `ELSEWHERE_TUNNEL_HOST=desk.examp
 
 ## Security
 
-**The idea in short.** Elsewhere leaves no permanent way in. Your router stays closed, nothing listens on your network unless you ask, and the tunnel only exists while the app runs. What's reachable is a single page, behind a single password, at a random URL you can throw away whenever you like. That password is the whole perimeter, so everything else follows from protecting it: it's generated long and random, wrong guesses are slowed to one per second, sessions expire and get closed, and every attempt ends up in a log. And since the whole thing is about 2,400 lines, you don't have to take my word for any of it.
+**The idea in short.** Elsewhere leaves no permanent way in. Your router stays closed, nothing listens on your network unless you ask, and the tunnel only exists while the app runs. What's reachable is a single page, behind a single password, at a random URL you can throw away whenever you like. That password is the whole perimeter, so everything else follows from protecting it: it's generated long and random, wrong guesses are slowed to one per second, sessions expire and get closed, and every attempt ends up in a log. And since the whole thing is about 3,000 lines, you don't have to take my word for any of it.
 
 Concretely:
 
@@ -189,6 +189,13 @@ Know the tradeoffs:
 - **`ELSEWHERE_BIND=0.0.0.0` is plain HTTP**, and `crypto.subtle` doesn't exist outside a secure context, so on that link the browser falls back to sending the password. It's off by default, and you rarely need it: the HTTPS tunnel works just as well while you're at home. Turn it on only if you want the Mac reachable with the internet down, and only on a network you trust.
 - **The app is signed ad hoc.** Anything already running as your user could replace the bundled `server.py` and inherit Elsewhere's Screen Recording and Accessibility permissions. Closing that needs a Developer ID signature, which needs a paid Apple account.
 - **Whoever gets in has your Mac**, with Screen Recording and Accessibility. There are no read-only or limited sessions.
+
+## When something looks wrong
+
+- **The screen is there but clicks do nothing.** Accessibility isn't granted: macOS never prompts for it by itself, because injected events fail silently. Open **🔐 Permissions…** in the menu — it reads `screen ✅ input ✅` when both are in place.
+- **The link doesn't open.** A brand-new tunnel takes a few seconds to answer everywhere, so the app checks it before handing it to you. If it stops working later, press *New Cloudflare link*.
+- **You changed `server.py` or the web client.** The app runs the copy inside its bundle: rebuild, then **↻ Restart server (keep the link)**, which leaves the tunnel and the URL alone.
+- **Anything else:** `~/.elsewhere/app.log` says what the app is doing, `server.log` records logins and sessions, `tunnel.log` is cloudflared's.
 
 ## When to use something else
 
@@ -251,13 +258,13 @@ Elsewhere.app (Swift) ── starts, watches and heals ──▶ server.py + clo
 
 | File | Lines | Role |
 |---|---|---|
-| `Elsewhere.swift` | ~1,080 | menu bar app, process supervision, watchdog, anti-sleep, Telegram |
-| `server.py` | ~370 | auth, WebSocket streaming, native input, clipboard |
-| `static/index.html` | ~680 | the whole web client |
-| `create_app_bundle.py` | ~120 | icon, `Info.plist`, `swiftc`, codesign, install |
+| `Elsewhere.swift` | ~1,430 | menu bar app, process supervision, watchdog, anti-sleep, Telegram |
+| `server.py` | ~470 | auth, WebSocket streaming, native input, clipboard |
+| `static/index.html` | ~830 | the whole web client |
+| `create_app_bundle.py` | ~130 | icon, `Info.plist`, `swiftc`, codesign, install |
 | `install.sh` / `start.sh` | ~105 | setup and terminal mode |
-| `signing-cert.sh` | ~40 | one-off self-signed certificate, so TCC permissions survive rebuilds |
-| `test_auto_quality.js` | ~30 | `node test_auto_quality.js` checks the adaptive logic |
+| `signing-cert.sh` | ~45 | one-off self-signed certificate, so TCC permissions survive rebuilds |
+| `test_auto_quality.js` | ~45 | `node test_auto_quality.js` checks the adaptive logic |
 
 Logs are written to `~/.elsewhere/`: `server.log` (logins and sessions), `tunnel.log` (cloudflared) and `app.log` (what the menu bar app is doing). If something doesn't work, `app.log` is the place to look first.
 
