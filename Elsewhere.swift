@@ -31,6 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var fTunnelName: NSTextField!
     var fTunnelHost: NSTextField!
     var cLan: NSButton!
+    var cMirror: NSButton!
     
     // Window elements
     var winStatusLabel: NSTextField!
@@ -65,6 +66,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // Il server ascolta solo su loopback salvo opt-in esplicito: senza, il link
     // Wi-Fi non esiste (ed è comunque HTTP in chiaro, quindi si sceglie a mano)
     var lanEnabled = false
+    var mirrorExtra = false      // specchia gli schermi secondari mentre sei collegato
+    var isMirrored = false
     var lanLabel: String { lanEnabled ? localUrl : "off (enable it in Settings)" }
 
     // Diagnostica su file: lanciata dal Finder, l'app non ha una console
@@ -88,6 +91,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         namedTunnelName = envValue("ELSEWHERE_TUNNEL_NAME")
         namedTunnelHost = envValue("ELSEWHERE_TUNNEL_HOST")
         lanEnabled     = envValue("ELSEWHERE_BIND") == "0.0.0.0"
+        mirrorExtra    = envValue("ELSEWHERE_MIRROR") == "1"
         localUrl       = lanEnabled ? "http://\(getLocalIP()):\(port)" : ""
     }
 
@@ -638,6 +642,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     return
                 }
 
+                // 2b. Schermi secondari: specchiati solo mentre qualcuno è collegato
+                if self.mirrorExtra {
+                    self.activeSessions { n in
+                        DispatchQueue.main.async { self.setMirroring(n > 0) }
+                    }
+                } else if self.isMirrored {
+                    self.setMirroring(false)
+                }
+
                 // 3. Link pubblico raggiungibile davvero?
                 guard ok, self.isServerReady, !self.publicUrl.isEmpty else { return }
                 let url = self.publicUrl
@@ -881,6 +894,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             isRunning = false
             isServerReady = false
             publicUrl = ""
+            setMirroring(false)
             disableSleepAssertion()
             tunnelProcess?.terminate()
             serverProcess?.terminate()
@@ -905,6 +919,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func quitApp() {
+        setMirroring(false)
         disableSleepAssertion()
         tunnelProcess?.terminate()
         serverProcess?.terminate()
@@ -1003,6 +1018,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
          .replacingOccurrences(of: "\n", with: "\\n")
     }
     
+    // ── Schermi secondari ────────────────────────────────────────────────────
+    // macOS non espone un modo pubblico per spegnere un monitor, ma può
+    // specchiarlo sul principale: da remoto equivale ad avere un solo schermo.
+    // Si usa .forSession, così un logout ripristina comunque tutto.
+    func setMirroring(_ on: Bool) {
+        guard on != isMirrored else { return }
+        var count: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &count)
+        guard count > 1 else { return }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        CGGetActiveDisplayList(count, &displays, &count)
+
+        var config: CGDisplayConfigRef?
+        guard CGBeginDisplayConfiguration(&config) == .success else { return }
+        let main = CGMainDisplayID()
+        for d in displays where d != main {
+            CGConfigureDisplayMirrorOfDisplay(config, d, on ? main : kCGNullDirectDisplay)
+        }
+        let r = CGCompleteDisplayConfiguration(config, .forSession)
+        if r == .success {
+            isMirrored = on
+            appLog("schermi secondari: \(on ? "specchiati sul principale" : "ripristinati")")
+        } else {
+            appLog("mirroring fallito (codice \(r.rawValue))")
+        }
+    }
+
+    // Quante sessioni remote sono aperte (endpoint locale del server)
+    func activeSessions(completion: @escaping (Int) -> Void) {
+        guard let url = URL(string: "http://127.0.0.1:\(port)/status") else { completion(0); return }
+        var req = URLRequest(url: url); req.timeoutInterval = 1.5
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            guard let data = data,
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let n = obj["sessions"] as? Int else { completion(0); return }
+            completion(n)
+        }.resume()
+    }
+
     // ── Permessi ─────────────────────────────────────────────────────────────
     // La registrazione schermo la chiede macOS da sola alla prima cattura, ma
     // l'Accessibilità no: CGEventPost senza permesso non mostra nulla, gli
@@ -1030,6 +1084,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         fTunnelName.stringValue = namedTunnelName
         fTunnelHost.stringValue = namedTunnelHost
         cLan.state = lanEnabled ? .on : .off
+        cMirror.state = mirrorExtra ? .on : .off
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -1045,7 +1100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func buildSettingsWindow() {
-        let w: CGFloat = 500, h: CGFloat = 430
+        let w: CGFloat = 500, h: CGFloat = 470
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: w, height: h),
                            styleMask: [.titled, .closable], backing: .buffered, defer: false)
         win.title = "Elsewhere — Settings"
@@ -1076,6 +1131,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         cLan = NSButton(checkboxWithTitle: "Also answer on the LAN (plain HTTP, trusted networks only)", target: nil, action: nil)
         cLan.frame = NSRect(x: 24, y: h - 352, width: 452, height: 22)
         c.addSubview(cLan)
+
+        cMirror = NSButton(checkboxWithTitle: "Mirror extra displays while someone is connected", target: nil, action: nil)
+        cMirror.frame = NSRect(x: 24, y: h - 376, width: 452, height: 22)
+        c.addSubview(cMirror)
+        c.addSubview(label("One screen instead of several while you work remotely. Windows may be rearranged, since mirroring changes resolution.", h - 402, small: true))
 
         let save = NSButton(frame: NSRect(x: 336, y: 20, width: 140, height: 34))
         save.title = "Save and restart"
@@ -1115,9 +1175,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             "ELSEWHERE_TUNNEL_NAME": fTunnelName.stringValue.trimmingCharacters(in: .whitespaces),
             "ELSEWHERE_TUNNEL_HOST": fTunnelHost.stringValue.trimmingCharacters(in: .whitespaces),
             "ELSEWHERE_BIND": cLan.state == .on ? "0.0.0.0" : "",
+            "ELSEWHERE_MIRROR": cMirror.state == .on ? "1" : "",
         ])
         settingsWindow?.orderOut(nil)
         localMenuItem?.title = "🏠 Local network: \(lanLabel)"
+
+        // Il mirroring si applica subito, senza aspettare il watchdog
+        if !mirrorExtra { setMirroring(false) }
+        else { activeSessions { n in DispatchQueue.main.async { self.setMirroring(n > 0) } } }
 
         // Si riavvia il minimo indispensabile: cambiare password non deve
         // costare un link nuovo (il tunnel punta sempre a 127.0.0.1:porta)
@@ -1235,7 +1300,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func handleSystemWake(_ notification: Notification) {
         appLog("☀️ System woke up")
-        sendNotification(title: "Elsewhere ☀️", subtitle: "Mac woke up", message: "Restoring the connection and waking the screen…")
         
         // Risveglia istantaneamente lo schermo dallo sleep
         wakeDisplay()
@@ -1258,9 +1322,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.localMenuItem?.title = "🏠 Local network: \(self.lanLabel)"
             self.updateUI()
             
-            // Riavvia il tunnel Cloudflare per riallineare il socket HTTP2
-            appLog("🔄 Restarting the Cloudflare tunnel after wake…")
-            self.startTunnel()
+            // Il Mac si sveglia da solo di continuo (Power Nap, backup, iCloud):
+            // rigenerare il tunnel a ogni risveglio significava un link nuovo e un
+            // messaggio Telegram ogni mezz'ora. Si rigenera solo se è davvero morto.
+            guard !self.publicUrl.isEmpty else { self.startTunnel(); return }
+            self.checkPublicReachable(self.publicUrl) { ok in
+                DispatchQueue.main.async {
+                    guard self.isRunning else { return }
+                    if ok {
+                        self.appLog("☀️ risveglio: il link risponde ancora, nessun nuovo tunnel")
+                    } else {
+                        self.appLog("🔄 risveglio: link morto, nuovo tunnel")
+                        self.sendNotification(title: "Elsewhere ☀️", subtitle: "Mac woke up", message: "Rebuilding the tunnel")
+                        self.startTunnel()
+                    }
+                }
+            }
         }
     }
     
@@ -1324,6 +1401,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        setMirroring(false)
         disableSleepAssertion()
         tunnelProcess?.terminate()
         serverProcess?.terminate()

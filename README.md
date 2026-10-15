@@ -57,6 +57,7 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
 - **Sharp when it matters.** A second after the picture stops moving, the Mac sends one full-resolution, high-quality frame, so text you're reading is crisp while motion stays cheap.
 - **It tunes itself.** When the connection genuinely can't keep up — frames are flowing and still falling behind — quality and scale step down, and climb back when it recovers. A still screen sends nothing, and that is never mistaken for a slow link. Touch a slider and it gets out of your way.
+- **One screen while you're away.** Optionally mirror extra displays onto the main one for as long as someone is connected, and put them back on disconnect.
 - **Clipboard both ways**, multiple monitors, a live fps/bandwidth readout, and a zoom that follows the cursor.
 - **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.
 - **No limits.** No session timeouts, no "commercial use detected" warning, no device cap.
@@ -132,6 +133,7 @@ If you'd rather edit the file, or you use terminal mode, these are the keys ([`.
 |---|---|
 | `ELSEWHERE_PASSWORD` | **Required**, at least 8 characters. The server refuses to start without it or with `changeme`. |
 | `ELSEWHERE_BIND` | Set to `0.0.0.0` to also answer on your LAN. Off by default: that link is plain HTTP. |
+| `ELSEWHERE_MIRROR` | `1` mirrors extra displays onto the main one while someone is connected, so you work on one screen instead of several. |
 | `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID` | Send the link to Telegram. Get the token from [@BotFather](https://t.me/BotFather). |
 | `ELSEWHERE_TUNNEL_NAME`, `ELSEWHERE_TUNNEL_HOST` | Use a fixed domain instead of a random link. |
 

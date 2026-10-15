@@ -34,6 +34,7 @@ CHALLENGE_TTL = 30
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 _sessions: dict[str, float] = {}
 _challenges: dict[str, float] = {}
+_active_sessions = 0
 _auth_lock = asyncio.Lock()
 
 # L'URL del tunnel è di fatto un segreto: no-referrer evita che finisca nei log
@@ -76,6 +77,13 @@ async def index():
 @app.get("/health")
 @app.head("/health")
 async def health(): return {"status": "ok"}
+
+# Quante sessioni sono aperte: serve all'app per sapere se sei collegato.
+# Solo da loopback diretto, perché dal tunnel arriva sempre x-forwarded-for.
+@app.get("/status")
+async def status(request: Request):
+    if "x-forwarded-for" in request.headers: raise HTTPException(404)
+    return {"sessions": _active_sessions}
 
 # Login a sfida: la password non attraversa la rete, quindi non passa da
 # Cloudflare nemmeno dentro il TLS. Il browser rimanda HMAC(password, sfida).
@@ -290,6 +298,7 @@ def build_flags(mods: list) -> int:
 # ── WebSocket ─────────────────────────────────────────────────────────────
 @app.websocket("/ws/{token}")
 async def ws_endpoint(websocket: WebSocket, token: str):
+    global _active_sessions
     if not valid_token(token):
         await websocket.close(code=4001); return
     await websocket.accept()
@@ -437,10 +446,14 @@ async def ws_endpoint(websocket: WebSocket, token: str):
                 except Exception as e:
                     print(f"Event error: {e}")
 
+        _active_sessions += 1
         try:
             await asyncio.gather(send_frames(), recv_events())
         except (WebSocketDisconnect, Exception):
             pass
+        finally:
+            _active_sessions = max(0, _active_sessions - 1)
+            log("session CLOSED")
 
 if __name__ == "__main__":
     import uvicorn
