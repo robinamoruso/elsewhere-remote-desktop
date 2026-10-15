@@ -41,6 +41,7 @@ Unico test: `node test_auto_quality.js` (logica della qualità adattiva, estratt
 - Non uccidere processi generici: `pkill` solo su `tunnelProcessPattern` e `lsof -sTCP:LISTEN` sulla porta, per non chiudere altri tunnel o server dell'utente.
 - Tastiera: il client invia la **posizione fisica** (`e.code`) e `KEYMAP` in `server.py` la traduce in keycode macOS (layout US). Nuovi tasti vanno aggiunti in entrambi.
 - I frame sono messaggi WebSocket **binari** (JPEG puro); `size` arriva come JSON solo quando cambia la risoluzione. Il client decodifica con `createImageBitmap`, con un contatore che scarta i frame decodificati in ritardo.
+- Il puntatore non è nella cattura: `cursor_shape()` legge `NSCursor.currentSystemCursor()` (immagine PNG + hotspot) e il loop invia `cursor` a ogni spostamento e `cursor_image`/`cursor_shape` quando cambia forma (controllo 3 volte al secondo, il client tiene in cache per id). Il client sottrae l'hotspot scalato, altrimenti la punta non cade dove deve.
 - Coordinate mouse normalizzate 0–1 rispetto al monitor selezionato. Le dimensioni vengono corrette con `CGDisplayBounds` perché mss restituisce pixel Retina.
 - Ogni endpoint nuovo che tocca il Mac deve richiedere il token (`Depends(require_token)`), perché il server è esposto su internet.
 - Login a sfida: `GET /challenge` poi `POST /auth` con `HMAC(password, sfida)`. Dal tunnel (richieste da 127.0.0.1) la prova è obbligatoria; la password in chiaro si accetta solo da indirizzi LAN, dove il browser non ha `crypto.subtle`.

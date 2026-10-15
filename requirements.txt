@@ -3,3 +3,4 @@ uvicorn[standard]
 mss
 pillow
 pyobjc-framework-Quartz
+pyobjc-framework-Cocoa

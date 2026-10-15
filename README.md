@@ -53,6 +53,7 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **No black screen.** Optional anti-sleep keeps the Mac and its display awake, and every connection wakes the screen. With the watchdog and *Avvia al login*, an always-on Mac mini stays reachable across reboots.
 - **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, double-tap to double-click, long-press for right-click, two fingers to scroll, and a bar with ⌘C, ⌘V, ⌘Z, ⌘Space, the arrow keys and the keyboard toggle.
 - **Any keyboard layout.** Keys are sent by *physical position*, so Italian, German and French keyboards just work. *Win KB* mode maps Ctrl to ⌘ when you connect from a Windows PC.
+- **You see the real pointer.** macOS leaves the cursor out of screen captures, so Elsewhere sends its position and its actual image — including the resize arrows on window edges, which is what makes dragging a window border possible at all.
 - **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
 - **It tunes itself.** When the connection genuinely can't keep up — frames are flowing and still falling behind — quality and scale step down, and climb back when it recovers. A still screen sends nothing, and that is never mistaken for a slow link. Touch a slider and it gets out of your way.
 - **Clipboard both ways**, multiple monitors, a live fps/bandwidth readout, and a zoom that follows the cursor.
@@ -206,6 +207,8 @@ To be clear about the networks: a proxy that inspects TLS or filters by category
 | Mac → you | `{"type":"monitors","list":[{"index","width","height"}],"current":0}` |
 | Mac → you | `{"type":"size","sw":1920,"sh":1080}` — only when the resolution changes |
 | Mac → you | the JPEG frame itself, as a **binary** WebSocket message |
+| Mac → you | `{"type":"cursor","x":0.5,"y":0.5}` — the real pointer, which the capture never contains |
+| Mac → you | `{"type":"cursor_image","id":"…","png":"<base64>","hx":5,"hy":5,"w":28,"h":40}` when its shape changes, then `{"type":"cursor_shape","id":"…"}` for a shape already sent |
 | you → Mac | `{"type":"config","fps":20,"quality":55,"scale":0.8,"monitor":0}` |
 | you → Mac | `{"type":"mouse_move","x":0.5,"y":0.5}` (coordinates from 0 to 1) |
 | you → Mac | `{"type":"mouse_down" / "mouse_up","x":…,"y":…,"button":"left"\|"right"\|"middle"}` |

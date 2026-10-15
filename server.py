@@ -1,8 +1,9 @@
-import asyncio, hashlib, hmac, io, json, os, secrets, subprocess, sys, time
+import asyncio, base64, hashlib, hmac, io, json, os, secrets, subprocess, sys, time
 from pathlib import Path
 from urllib.parse import unquote
 
 import mss
+from AppKit import NSCursor, NSBitmapImageRep
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
@@ -171,6 +172,24 @@ def wake_display():
     except Exception as e:
         print(f"Wake display error: {e}")
 
+# ── Puntatore ─────────────────────────────────────────────────────────────
+# La cattura dello schermo di macOS non contiene il puntatore: va letto a parte
+# e disegnato dal client, altrimenti non si vede dov'è il mouse né che forma ha
+# (la freccia di ridimensionamento sui bordi delle finestre, per esempio).
+NSBitmapImageFileTypePNG = 4
+
+def cursor_shape():
+    """(png base64, hotspot x, hotspot y, larghezza, altezza) del puntatore attuale."""
+    c = NSCursor.currentSystemCursor()
+    if c is None: return None
+    img, hot = c.image(), c.hotSpot()
+    size = img.size()
+    rep_ = NSBitmapImageRep.imageRepWithData_(img.TIFFRepresentation())
+    if rep_ is None: return None
+    png = rep_.representationUsingType_properties_(NSBitmapImageFileTypePNG, None)
+    if png is None: return None
+    return (base64.b64encode(bytes(png)).decode(), hot.x, hot.y, size.width, size.height)
+
 # ── Input nativo Quartz ───────────────────────────────────────────────────
 def mouse_event(kind, x, y, btn=kCGMouseButtonLeft):
     pt = CGPoint(x=x, y=y)
@@ -287,6 +306,10 @@ async def ws_endpoint(websocket: WebSocket, token: str):
             prev_bytes = None
             prev_mon = None
             prev_size = None
+            prev_pos = None
+            prev_shape = None
+            sent_shapes = set()   # il client tiene in cache le forme già ricevute
+            next_shape_check = 0.0
             while True:
                 # La sessione scade anche a WebSocket aperto: chiudi, altrimenti
                 # i frame si fermano ma mouse e tastiera resterebbero attivi
@@ -296,6 +319,32 @@ async def ws_endpoint(websocket: WebSocket, token: str):
                 t0 = time.perf_counter()
                 try:
                     cur_mon = mon
+
+                    # Posizione reale del puntatore, indipendente dai frame:
+                    # muovere il mouse non cambia un pixel dell'immagine catturata
+                    loc = CGEventGetLocation(CGEventCreate(None))
+                    px = (loc.x - cur_mon["left"]) / cur_mon["width"]
+                    py = (loc.y - cur_mon["top"]) / cur_mon["height"]
+                    pos = (round(px, 4), round(py, 4))
+                    if pos != prev_pos and 0 <= px <= 1 and 0 <= py <= 1:
+                        # La forma cambia di rado e costa: si controlla 3 volte al secondo
+                        if t0 >= next_shape_check:
+                            next_shape_check = t0 + 0.3
+                            shape = cursor_shape()
+                            if shape:
+                                sid = hashlib.md5(shape[0].encode()).hexdigest()[:12]
+                                if sid != prev_shape:
+                                    prev_shape = sid
+                                    if sid in sent_shapes:
+                                        # già inviata: basta dire quale (18 KB risparmiati)
+                                        await websocket.send_text(json.dumps({"type": "cursor_shape", "id": sid}))
+                                    else:
+                                        sent_shapes.add(sid)
+                                        await websocket.send_text(json.dumps({
+                                            "type": "cursor_image", "id": sid, "png": shape[0],
+                                            "hx": shape[1], "hy": shape[2], "w": shape[3], "h": shape[4]}))
+                        await websocket.send_text(json.dumps({"type": "cursor", "x": pos[0], "y": pos[1]}))
+                        prev_pos = pos
                     sw, sh = cur_mon["width"], cur_mon["height"]
                     raw = sct.grab(cur_mon)
                     img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
