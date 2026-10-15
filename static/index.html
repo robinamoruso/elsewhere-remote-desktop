@@ -399,10 +399,10 @@ let auto = true, slowSecs = 0, goodSecs = 0, autoStep = 0;
 // Gradini di degrado: prima la qualità JPEG, poi la scala
 const STEPS = [
   {quality: 55, scale: 0.8},
-  {quality: 40, scale: 0.8},
-  {quality: 30, scale: 0.7},
-  {quality: 25, scale: 0.5},
-  {quality: 20, scale: 0.4},
+  {quality: 48, scale: 0.8},
+  {quality: 42, scale: 0.75},
+  {quality: 36, scale: 0.65},
+  {quality: 32, scale: 0.55},
 ];
 
 // Decide il gradino successivo. Pura di proposito: la logica ha abbastanza
@@ -558,7 +558,13 @@ canvas.addEventListener('mouseenter',  ()=>dCur.style.opacity='1');
 canvas.addEventListener('mouseleave',  ()=>dCur.style.opacity='0');
 
 // ── WIN KB MODE: remap tasti Windows → Mac ───────────────────────────────
-let winKb = false;
+// Da un PC Windows o Linux il remap Ctrl→⌘ serve sempre: si attiva da solo.
+// iPad e iPhone riportano "MacIntel"/"iPhone", quindi restano senza remap.
+const appleClient = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '') ||
+                    /Mac OS X|iPhone|iPad/.test(navigator.userAgent);
+let winKb = !appleClient;
+document.getElementById('win-kb-btn').classList.toggle('active', winKb);
+
 function toggleWinKb() {
   winKb = !winKb;
   document.getElementById('win-kb-btn').classList.toggle('active', winKb);

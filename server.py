@@ -15,6 +15,7 @@ from Quartz.CoreGraphics import (
     kCGEventMouseMoved, kCGEventLeftMouseDown, kCGEventLeftMouseUp,
     kCGEventRightMouseDown, kCGEventRightMouseUp,
     kCGEventOtherMouseDown, kCGEventOtherMouseUp,
+    kCGEventLeftMouseDragged, kCGEventRightMouseDragged, kCGEventOtherMouseDragged,
     CGEventCreateScrollWheelEvent, kCGScrollEventUnitLine,
     kCGHIDEventTap, kCGMouseButtonLeft, kCGMouseButtonRight, kCGMouseButtonCenter,
     kCGEventFlagMaskShift, kCGEventFlagMaskControl,
@@ -196,9 +197,23 @@ def mouse_event(kind, x, y, btn=kCGMouseButtonLeft):
     ev = CGEventCreateMouseEvent(None, kind, pt, btn)
     CGEventPost(kCGHIDEventTap, ev)
 
+# Quale tasto è premuto: con un tasto giù macOS vuole eventi di trascinamento,
+# non di movimento, altrimenti nessuna app capisce che stai trascinando
+# (bordi di finestre, selezioni, icone: tutto fermo).
+_held: set[str] = set()
+DRAG_EVENT = {
+    "left":   (kCGEventLeftMouseDragged,  kCGMouseButtonLeft),
+    "right":  (kCGEventRightMouseDragged, kCGMouseButtonRight),
+    "middle": (kCGEventOtherMouseDragged, kCGMouseButtonCenter),
+}
+
 def mouse_move(x, y):
     pt = CGPoint(x=x, y=y)
-    ev = CGEventCreateMouseEvent(None, kCGEventMouseMoved, pt, kCGMouseButtonLeft)
+    if _held:
+        kind, btn = DRAG_EVENT[next(iter(_held))]
+    else:
+        kind, btn = kCGEventMouseMoved, kCGMouseButtonLeft
+    ev = CGEventCreateMouseEvent(None, kind, pt, btn)
     CGEventPost(kCGHIDEventTap, ev)
 
 def mouse_click(down, x, y, button="left", clicks=1):
@@ -209,6 +224,8 @@ def mouse_click(down, x, y, button="left", clicks=1):
     }
     dn, up, btn = mapping.get(button, mapping["left"])
     kind = dn if down else up
+    if down: _held.add(button if button in DRAG_EVENT else "left")
+    else:    _held.discard(button if button in DRAG_EVENT else "left")
     pt = CGPoint(x=x, y=y)
     ev = CGEventCreateMouseEvent(None, kind, pt, btn)
     # Senza click state macOS legge due clic vicini come due clic singoli,
