@@ -307,6 +307,8 @@ async def ws_endpoint(websocket: WebSocket, token: str):
             prev_mon = None
             prev_size = None
             prev_pos = None
+            still_since = None      # da quando l'immagine non cambia
+            crisp_sent = False      # fotogramma nitido già inviato per questa pausa
             prev_shape = None
             sent_shapes = set()   # il client tiene in cache le forme già ricevute
             next_shape_check = 0.0
@@ -353,6 +355,21 @@ async def ws_endpoint(websocket: WebSocket, token: str):
                     buf = io.BytesIO()
                     img.save(buf, "JPEG", quality=quality, optimize=False)
                     frame_bytes = buf.getvalue()
+                    if frame_bytes == prev_bytes and cur_mon is prev_mon:
+                        # Schermo fermo: dopo un secondo si manda un fotogramma a
+                        # risoluzione piena e qualità alta. Non costa banda (succede
+                        # solo quando non cambia nulla) e il testo diventa leggibile.
+                        if still_since is None:
+                            still_since = t0
+                        elif not crisp_sent and t0 - still_since > 1.0:
+                            crisp = io.BytesIO()
+                            Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX").save(
+                                crisp, "JPEG", quality=90, optimize=False)
+                            await websocket.send_bytes(crisp.getvalue())
+                            crisp_sent = True
+                    else:
+                        still_since = None
+                        crisp_sent = False
                     if frame_bytes != prev_bytes or cur_mon is not prev_mon:
                         # Il JPEG va giù binario: in base64 dentro un JSON pesava un terzo in più.
                         # Le dimensioni cambiano solo cambiando monitor o scala, quindi a parte.

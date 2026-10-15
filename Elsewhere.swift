@@ -264,6 +264,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let openWinItem = NSMenuItem(title: "🖥️ Open control panel", action: #selector(showWindow), keyEquivalent: "p")
         menu.addItem(openWinItem)
         
+        let restartItem = NSMenuItem(title: "↻ Restart server (keep the link)", action: #selector(restartServerOnly), keyEquivalent: "")
+        menu.addItem(restartItem)
+
         toggleMenuItem = NSMenuItem(title: "⏸️ Stop service", action: #selector(toggleService), keyEquivalent: "")
         menu.addItem(toggleMenuItem)
         menu.addItem(NSMenuItem.separator())
@@ -890,6 +893,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
+    // Il tunnel punta sempre a 127.0.0.1:porta, quindi il server si può
+    // riavviare da solo: utile dopo un rebuild, e il link resta valido
+    @objc func restartServerOnly() {
+        guard isRunning else { startServices(); return }
+        appLog("riavvio del solo server, link invariato")
+        serverProcess?.terminate()
+        killServerProcesses()
+        startServer()
+        sendNotification(title: "Elsewhere", subtitle: "Server restarted", message: "Same link, new server")
+    }
+
     @objc func quitApp() {
         disableSleepAssertion()
         tunnelProcess?.terminate()

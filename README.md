@@ -51,10 +51,11 @@ Even the tunnel doesn't need an account: Cloudflare quick tunnels are free and a
 - **The link comes to you.** When the URL changes, the new one lands in your Telegram, so you never need to know it in advance. Set it up in the app, no config file to edit.
 - **Links are disposable.** The URL is random. If you think it leaked, press *Rigenera* and the old one stops working within seconds.
 - **No black screen.** Optional anti-sleep keeps the Mac and its display awake, and every connection wakes the screen. With the watchdog and *Avvia al login*, an always-on Mac mini stays reachable across reboots.
-- **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, double-tap to double-click, long-press for right-click, two fingers to scroll, and a bar with ⌘C, ⌘V, ⌘Z, ⌘Space, the arrow keys and the keyboard toggle.
+- **Made for phones.** The screen becomes a trackpad: drag to move, tap to click, double-tap to double-click, long-press for right-click, two fingers to scroll, pinch to zoom, and a bar with ⌘C, ⌘V, ⌘Z, ⌘Space, the arrow keys and the keyboard toggle.
 - **Any keyboard layout.** Keys are sent by *physical position*, so Italian, German and French keyboards just work. *Win KB* mode maps Ctrl to ⌘ when you connect from a Windows PC.
 - **You see the real pointer.** macOS leaves the cursor out of screen captures, so Elsewhere sends its position and its actual image — including the resize arrows on window edges, which is what makes dragging a window border possible at all.
 - **Drag a file onto the page** and it lands in the Mac's `~/Downloads`.
+- **Sharp when it matters.** A second after the picture stops moving, the Mac sends one full-resolution, high-quality frame, so text you're reading is crisp while motion stays cheap.
 - **It tunes itself.** When the connection genuinely can't keep up — frames are flowing and still falling behind — quality and scale step down, and climb back when it recovers. A still screen sends nothing, and that is never mistaken for a slow link. Touch a slider and it gets out of your way.
 - **Clipboard both ways**, multiple monitors, a live fps/bandwidth readout, and a zoom that follows the cursor.
 - **Nothing to install where you connect from.** A locked-down work laptop or a borrowed phone is enough.

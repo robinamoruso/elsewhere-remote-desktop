@@ -152,7 +152,17 @@ let zoomFactor = 2.0;
 let currentLeft = 0;
 let currentTop = 0;
 
+// Zoom a fattore continuo: sotto 1.05 si considera spento
+function setZoom(f) {
+  zoomFactor = Math.max(1, Math.min(4, f));
+  const on = zoomFactor > 1.05;
+  if (on !== zoomEnabled) { zoomEnabled = on; document.getElementById('zoom-btn').classList.toggle('active', on); }
+  fitCanvas();
+}
+
 function toggleZoom() {
+  if (zoomEnabled) { setZoom(1); return; }
+  zoomFactor = 2.0;
   zoomEnabled = !zoomEnabled;
   document.getElementById('zoom-btn').classList.toggle('active', zoomEnabled);
   
@@ -274,12 +284,26 @@ async function connect() {
     const r = await fetch('/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(await authBody(pwd)) });
     if (!r.ok) { document.getElementById('err').textContent='Wrong password'; return; }
     token = (await r.json()).token;
-    document.getElementById('login').style.display = 'none';
-    document.getElementById('app').style.display   = 'block';
-    if (mobile()) mBar.style.display = 'flex';
-    openWS();
+    try { sessionStorage.setItem('elsewhere_token', token); } catch {}
+    enterApp();
   } catch { document.getElementById('err').textContent = 'Network error'; }
 }
+
+function enterApp() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display   = 'block';
+  if (mobile()) mBar.style.display = 'flex';
+  openWS();
+}
+
+// Ricaricare la pagina per sbaglio non deve costare un nuovo login: il token
+// vale un'ora e resta nella scheda, non su disco. Se è scaduto il server
+// chiude con 4001 e si torna al login.
+(function restoreSession() {
+  let saved = null;
+  try { saved = sessionStorage.getItem('elsewhere_token'); } catch {}
+  if (saved) { token = saved; enterApp(); }
+})();
 
 function wakeDisplay() {
   send({ type: 'wake' });
@@ -306,6 +330,7 @@ function openWS() {
       document.getElementById('login').style.display = 'flex';
       document.getElementById('err').textContent = 'Session expired, sign in again';
       token = null;
+      try { sessionStorage.removeItem('elsewhere_token'); } catch {}
       return;
     }
     tries++;
@@ -641,6 +666,9 @@ document.addEventListener('keyup', e=>{
 
 // ── TOUCH TRACKPAD ───────────────────────────────────────────────────────
 const SPEED = 1.6;
+let pinchStart=null, pinchBase=1, pinching=false;
+const touchDist = e => Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                                  e.touches[0].clientY-e.touches[1].clientY);
 let lt=null, tapStart=null, tapMoved=false, tapTimer=null, lastTwoY=null, lastTap=0;
 const SLOP = 10;   // px oltre i quali non è più una pressione ferma, ma un trascinamento
 
@@ -669,6 +697,7 @@ wrap.addEventListener('touchstart', e=>{
   } else if(e.touches.length===2){
     clearTimeout(tapTimer); tapTimer=null;
     lastTwoY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    pinchStart=touchDist(e); pinchBase=zoomEnabled?zoomFactor:1; pinching=false;
   }
 },{passive:false});
 
@@ -686,6 +715,13 @@ wrap.addEventListener('touchmove', e=>{
     moveCursor(dx,dy);
     lt={x:t.clientX,y:t.clientY};
   } else if(e.touches.length===2 && lastTwoY!=null){
+    // Due dita: pizzico se la distanza cambia, scorrimento se si spostano insieme
+    const dist=touchDist(e);
+    if(!pinching && pinchStart && Math.abs(dist-pinchStart)>25) pinching=true;
+    if(pinching){
+      setZoom(pinchBase * dist / pinchStart);
+      return;
+    }
     const cy2=(e.touches[0].clientY+e.touches[1].clientY)/2;
     const d=lastTwoY-cy2;
     if(Math.abs(d)>4){ send({type:'scroll',x:cx,y:cy,dy:Math.sign(d)*3}); lastTwoY=cy2; }
